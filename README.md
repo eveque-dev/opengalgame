@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/eveque-dev/opengalgame/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/eveque-dev/opengalgame?style=flat-square&color=b9a4f4&label=release"></a>
-  <a href="https://github.com/eveque-dev/opengalgame/actions/workflows/windows.yml"><img alt="Windows build" src="https://github.com/eveque-dev/opengalgame/actions/workflows/windows.yml/badge.svg"></a>
+  <a href="https://github.com/eveque-dev/opengalgame/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/eveque-dev/opengalgame?style=flat-square&color=b9a4f4&label=release&logo=github&cacheSeconds=300"></a>
+  <a href="https://github.com/eveque-dev/opengalgame/actions/workflows/windows.yml"><img alt="Windows build" src="https://github.com/eveque-dev/opengalgame/actions/workflows/windows.yml/badge.svg?branch=main"></a>
   <img alt="Platform: Windows x64" src="https://img.shields.io/badge/platform-Windows_x64-88c7be?style=flat-square">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-c5ccd9?style=flat-square"></a>
 </p>
@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/eveque-dev/opengalgame/releases/latest"><strong>下载编辑器</strong></a> ·
+  <a href="https://github.com/eveque-dev/opengalgame/releases/download/v0.2.0/opengalgame-v0.2.0-windows-x64.zip"><strong>下载编辑器</strong></a> ·
   <a href="docs/guide.zh-CN.md">使用指南</a> ·
   <a href="examples/long-form/project.json">查看示例剧本</a> ·
   <a href="docs/architecture.md">引擎架构</a>
@@ -106,7 +106,7 @@ python tools/package_windows.py
 
 支持命令行校验、运行与导出，参见 [开发与架构](docs/architecture.md)。
 
-### 可核对的质量，而非空白的承诺
+### 用完整故事验证运行内核
 
 当前包含 **21 项自动测试**，覆盖条件分支、变量回退、存档匹配、事务式导入、恢复副本、媒体迁移与真实 EXE 图标资源。42 节点样例的 10 条路径在保存、重开与导出后重复验证。
 
