@@ -1,0 +1,580 @@
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::path::{Component, Path};
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Project {
+    pub format_version: u32,
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub author: String,
+    pub start: String,
+    #[serde(default)]
+    pub characters: Vec<Character>,
+    #[serde(default)]
+    pub backgrounds: Vec<Background>,
+    #[serde(default)]
+    pub flags: BTreeMap<String, bool>,
+    pub nodes: Vec<Node>,
+    #[serde(default)]
+    pub audio: Vec<AudioAsset>,
+    #[serde(default)]
+    pub presentation: Presentation,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Character {
+    pub id: String,
+    pub name: String,
+    pub color: [u8; 3],
+    pub portrait: Option<String>,
+    #[serde(default)]
+    pub expressions: BTreeMap<String, String>,
+    #[serde(default)]
+    pub tags: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AudioAsset {
+    pub id: String,
+    pub name: String,
+    pub file: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Presentation {
+    pub cover: Option<String>,
+    pub icon: Option<String>,
+    pub accent: [u8; 3],
+    pub font_size: f32,
+    pub typewriter_cps: f32,
+    pub transition_seconds: f32,
+    pub bgm: Option<String>,
+}
+impl Default for Presentation {
+    fn default() -> Self {
+        Self {
+            cover: None,
+            icon: None,
+            accent: [169, 156, 241],
+            font_size: 22.,
+            typewriter_cps: 0.,
+            transition_seconds: 0.35,
+            bgm: None,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Transition {
+    #[default]
+    None,
+    Fade,
+    Slide,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Actor {
+    pub character: String,
+    pub expression: Option<String>,
+    pub side: PortraitSide,
+    pub scale: f32,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Background {
+    pub id: String,
+    pub name: String,
+    pub file: String,
+    #[serde(default)]
+    pub tags: String,
+}
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeKind {
+    #[default]
+    Dialogue,
+    Choice,
+    Ending,
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum PortraitSide {
+    Left,
+    Center,
+    #[default]
+    Right,
+}
+impl PortraitSide {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Left => "左侧",
+            Self::Center => "中央",
+            Self::Right => "右侧",
+        }
+    }
+}
+fn one() -> f32 {
+    1.0
+}
+impl NodeKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Dialogue => "对白",
+            Self::Choice => "选择",
+            Self::Ending => "结局",
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Node {
+    pub id: String,
+    pub title: String,
+    pub kind: NodeKind,
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub character: Option<String>,
+    #[serde(default)]
+    pub background: Option<String>,
+    #[serde(default)]
+    pub next: Option<String>,
+    #[serde(default)]
+    pub choices: Vec<Choice>,
+    #[serde(default)]
+    pub position: [f32; 2],
+    #[serde(default)]
+    pub portrait_side: PortraitSide,
+    #[serde(default = "one")]
+    pub portrait_scale: f32,
+    #[serde(default)]
+    pub chapter: String,
+    #[serde(default)]
+    pub expression: Option<String>,
+    #[serde(default)]
+    pub actors: Vec<Actor>,
+    #[serde(default)]
+    pub transition: Transition,
+    #[serde(default)]
+    pub bgm: Option<String>,
+    #[serde(default)]
+    pub sound: Option<String>,
+}
+impl Node {
+    pub fn new(id: String, kind: NodeKind, index: usize) -> Self {
+        Self {
+            title: format!("新{}", kind.label()),
+            id,
+            kind,
+            text: "在这里写下故事。".into(),
+            character: None,
+            background: None,
+            next: None,
+            choices: vec![],
+            position: [(index % 3) as f32 * 270., (index / 3) as f32 * 170.],
+            portrait_side: PortraitSide::Right,
+            portrait_scale: 1.0,
+            chapter: "第一章".into(),
+            expression: None,
+            actors: vec![],
+            transition: Transition::None,
+            bgm: None,
+            sound: None,
+        }
+    }
+    pub fn targets(&self) -> Vec<&str> {
+        match self.kind {
+            NodeKind::Dialogue => self.next.iter().map(String::as_str).collect(),
+            NodeKind::Choice => self.choices.iter().map(|c| c.target.as_str()).collect(),
+            NodeKind::Ending => vec![],
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Choice {
+    pub text: String,
+    pub target: String,
+    #[serde(default)]
+    pub condition: Option<FlagValue>,
+    #[serde(default)]
+    pub set_flag: Option<FlagValue>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct FlagValue {
+    pub flag: String,
+    pub value: bool,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Severity {
+    Error,
+    Warning,
+}
+#[derive(Clone, Debug)]
+pub struct Issue {
+    pub severity: Severity,
+    pub node: Option<String>,
+    pub message: String,
+}
+impl Project {
+    pub fn image_files(&self) -> Vec<&str> {
+        self.backgrounds
+            .iter()
+            .map(|b| b.file.as_str())
+            .chain(self.characters.iter().flat_map(|c| {
+                c.portrait
+                    .iter()
+                    .map(String::as_str)
+                    .chain(c.expressions.values().map(String::as_str))
+            }))
+            .chain(self.presentation.cover.iter().map(String::as_str))
+            .chain(self.presentation.icon.iter().map(String::as_str))
+            .collect()
+    }
+    pub fn asset_use_count(&self, id: &str) -> usize {
+        self.nodes
+            .iter()
+            .filter(|n| {
+                n.character.as_deref() == Some(id)
+                    || n.background.as_deref() == Some(id)
+                    || n.bgm.as_deref() == Some(id)
+                    || n.sound.as_deref() == Some(id)
+                    || n.actors.iter().any(|a| a.character == id)
+            })
+            .count()
+    }
+    pub fn node(&self, id: &str) -> Option<&Node> {
+        self.nodes.iter().find(|n| n.id == id)
+    }
+    pub fn next_id(&self) -> String {
+        (1..)
+            .map(|n| format!("scene_{n}"))
+            .find(|id| self.node(id).is_none())
+            .unwrap()
+    }
+    pub fn rename_node(&mut self, old: &str, new: &str) -> anyhow::Result<()> {
+        anyhow::ensure!(!new.trim().is_empty(), "节点标识不能为空");
+        anyhow::ensure!(old == new || self.node(new).is_none(), "节点标识已存在");
+        anyhow::ensure!(self.node(old).is_some(), "原节点不存在");
+        if self.start == old {
+            self.start = new.into();
+        }
+        for n in &mut self.nodes {
+            if n.id == old {
+                n.id = new.into();
+            }
+            if n.next.as_deref() == Some(old) {
+                n.next = Some(new.into());
+            }
+            for c in &mut n.choices {
+                if c.target == old {
+                    c.target = new.into();
+                }
+            }
+        }
+        Ok(())
+    }
+}
+pub fn safe_asset(base: &Path, relative: &str) -> anyhow::Result<std::path::PathBuf> {
+    let path = Path::new(relative);
+    anyhow::ensure!(
+        !relative.trim().is_empty() && !path.is_absolute(),
+        "素材必须使用相对路径"
+    );
+    anyhow::ensure!(
+        path.components()
+            .all(|c| matches!(c, Component::Normal(_) | Component::CurDir)),
+        "素材路径不能跨出项目目录"
+    );
+    // Check both separators, including Windows paths inspected on another OS.
+    anyhow::ensure!(
+        !relative.contains(':') && !relative.split(['/', '\\']).any(|p| p == ".."),
+        "素材路径包含非法部分"
+    );
+    let root = base.canonicalize()?;
+    let full = root.join(path).canonicalize()?;
+    anyhow::ensure!(
+        full.starts_with(&root) && full.is_file(),
+        "素材必须是项目目录内的文件"
+    );
+    Ok(full)
+}
+pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
+    let mut issues = vec![];
+    let mut push = |severity, node: Option<&str>, message: String| {
+        issues.push(Issue {
+            severity,
+            node: node.map(str::to_owned),
+            message,
+        })
+    };
+    if p.format_version != 1 {
+        push(Severity::Error, None, "不支持的项目格式版本".into());
+    }
+    if p.id.trim().is_empty() || p.title.trim().is_empty() {
+        push(Severity::Error, None, "项目标识和标题不能为空".into());
+    }
+    if p.nodes.is_empty() {
+        push(Severity::Error, None, "至少需要一个剧情节点".into());
+    }
+    let mut ids = HashSet::new();
+    for n in &p.nodes {
+        if n.id.trim().is_empty() || !ids.insert(n.id.as_str()) {
+            push(Severity::Error, Some(&n.id), "节点标识为空或重复".into());
+        }
+    }
+    if p.node(&p.start).is_none() {
+        push(
+            Severity::Error,
+            None,
+            format!("起始节点 {} 不存在", p.start),
+        );
+    }
+    let mut char_ids = HashSet::new();
+    for c in &p.characters {
+        if c.id.trim().is_empty() || !char_ids.insert(c.id.as_str()) {
+            push(Severity::Error, None, "人物标识为空或重复".into());
+        }
+    }
+    let mut bg_ids = HashSet::new();
+    for b in &p.backgrounds {
+        if b.id.trim().is_empty() || !bg_ids.insert(b.id.as_str()) {
+            push(Severity::Error, None, "背景标识为空或重复".into());
+        }
+    }
+    let mut audio_ids = HashSet::new();
+    for a in &p.audio {
+        if a.id.trim().is_empty() || !audio_ids.insert(a.id.as_str()) {
+            push(Severity::Error, None, "音轨标识为空或重复".into());
+        }
+    }
+    if let Some(id) = &p.presentation.bgm
+        && !audio_ids.contains(id.as_str())
+    {
+        push(Severity::Error, None, format!("标题音乐 {id} 不存在"));
+    }
+    if !(12.0..=48.0).contains(&p.presentation.font_size)
+        || !(0.0..=120.0).contains(&p.presentation.typewriter_cps)
+        || !(0.0..=3.0).contains(&p.presentation.transition_seconds)
+    {
+        push(Severity::Error, None, "显示参数超出有效范围".into());
+    }
+    for n in &p.nodes {
+        for audio in [&n.bgm, &n.sound].into_iter().flatten() {
+            if audio != "$stop" && !audio_ids.contains(audio.as_str()) {
+                push(Severity::Error, Some(&n.id), format!("音轨 {audio} 不存在"));
+            }
+        }
+        if let (Some(id), Some(expression)) = (&n.character, &n.expression)
+            && !p
+                .characters
+                .iter()
+                .any(|c| &c.id == id && c.expressions.contains_key(expression))
+        {
+            push(Severity::Error, Some(&n.id), "发言人的表情不存在".into());
+        }
+        for a in &n.actors {
+            if !p.characters.iter().any(|c| {
+                c.id == a.character
+                    && a.expression
+                        .as_ref()
+                        .is_none_or(|e| c.expressions.contains_key(e))
+            }) {
+                push(Severity::Error, Some(&n.id), "同屏人物或表情不存在".into());
+            }
+            if !a.scale.is_finite() || !(0.4..=1.6).contains(&a.scale) {
+                push(Severity::Error, Some(&n.id), "同屏立绘大小无效".into());
+            }
+        }
+        if n.text.trim().is_empty() {
+            push(Severity::Warning, Some(&n.id), "正文为空".into());
+        }
+        if n.character
+            .as_ref()
+            .is_some_and(|id| !char_ids.contains(id.as_str()))
+        {
+            push(Severity::Error, Some(&n.id), "引用了不存在的人物".into());
+        }
+        if n.background
+            .as_ref()
+            .is_some_and(|id| !bg_ids.contains(id.as_str()))
+        {
+            push(Severity::Error, Some(&n.id), "引用了不存在的背景".into());
+        }
+        if n.kind == NodeKind::Dialogue && n.next.is_none() {
+            push(
+                Severity::Error,
+                Some(&n.id),
+                "对白需要指定下一节点，终点请使用结局类型".into(),
+            );
+        }
+        if n.kind == NodeKind::Choice && n.choices.is_empty() {
+            push(
+                Severity::Error,
+                Some(&n.id),
+                "选择节点至少需要一个选项".into(),
+            );
+        }
+        for t in n.targets() {
+            if p.node(t).is_none() {
+                push(Severity::Error, Some(&n.id), format!("目标节点 {t} 不存在"));
+            }
+        }
+        for c in &n.choices {
+            if c.text.trim().is_empty() {
+                push(Severity::Error, Some(&n.id), "选项文字不能为空".into());
+            }
+            for f in [&c.condition, &c.set_flag].into_iter().flatten() {
+                if !p.flags.contains_key(&f.flag) {
+                    push(
+                        Severity::Error,
+                        Some(&n.id),
+                        format!("变量 {} 未定义", f.flag),
+                    );
+                }
+            }
+        }
+        if !n.position.iter().all(|v| v.is_finite()) {
+            push(Severity::Error, Some(&n.id), "节点位置无效".into());
+        }
+        if !n.portrait_scale.is_finite() || !(0.4..=1.6).contains(&n.portrait_scale) {
+            push(
+                Severity::Error,
+                Some(&n.id),
+                "立绘缩放必须在 0.4–1.6 之间".into(),
+            );
+        }
+    }
+    if let Some(base) = base {
+        for file in p.image_files() {
+            match safe_asset(base, file).and_then(|full| {
+                let (w, h) = image::ImageReader::open(full)?
+                    .with_guessed_format()?
+                    .into_dimensions()?;
+                anyhow::ensure!(
+                    w > 0 && h > 0 && w <= 8192 && h <= 8192,
+                    "图片尺寸必须在 1–8192 像素内"
+                );
+                Ok(())
+            }) {
+                Ok(()) => {}
+                Err(e) => push(Severity::Error, None, format!("素材 {file}：{e}")),
+            }
+        }
+        for a in &p.audio {
+            if let Err(e) = safe_asset(base, &a.file).and_then(|full| {
+                rodio::Decoder::try_from(std::fs::File::open(full)?)
+                    .map(|_| ())
+                    .map_err(Into::into)
+            }) {
+                push(
+                    Severity::Error,
+                    None,
+                    format!("音轨 {} 无法读取：{e}", a.name),
+                );
+            }
+        }
+    }
+    let mut reached = HashSet::new();
+    let mut queue = VecDeque::from([p.start.as_str()]);
+    while let Some(id) = queue.pop_front() {
+        if reached.insert(id)
+            && let Some(n) = p.node(id)
+        {
+            queue.extend(n.targets());
+        }
+    }
+    for n in &p.nodes {
+        if !reached.contains(n.id.as_str()) {
+            push(
+                Severity::Warning,
+                Some(&n.id),
+                "从开头无法到达此节点".into(),
+            );
+        }
+    }
+    if !p
+        .nodes
+        .iter()
+        .any(|n| n.kind == NodeKind::Ending && reached.contains(n.id.as_str()))
+    {
+        push(Severity::Error, None, "从开头无法到达任何结局".into());
+    }
+    // Exact flag-state traversal catches conditional dead ends, unlike a plain graph walk.
+    if !issues.iter().any(|i| i.severity == Severity::Error) {
+        let mut states = HashSet::new();
+        let mut pending = VecDeque::from([(p.start.clone(), p.flags.clone())]);
+        while let Some((id, flags)) = pending.pop_front() {
+            if states.len() >= 8192 {
+                issues.push(Issue {
+                    severity: Severity::Warning,
+                    node: None,
+                    message: "状态较多，条件路径检查在 8192 个状态后停止".into(),
+                });
+                break;
+            }
+            if !states.insert((id.clone(), flags.clone())) {
+                continue;
+            }
+            let Some(n) = p.node(&id) else {
+                continue;
+            };
+            match n.kind {
+                NodeKind::Dialogue => {
+                    if let Some(next) = &n.next {
+                        pending.push_back((next.clone(), flags));
+                    }
+                }
+                NodeKind::Choice => {
+                    let visible: Vec<_> = n
+                        .choices
+                        .iter()
+                        .filter(|c| {
+                            c.condition
+                                .as_ref()
+                                .is_none_or(|f| flags.get(&f.flag) == Some(&f.value))
+                        })
+                        .collect();
+                    if visible.is_empty() {
+                        issues.push(Issue {
+                            severity: Severity::Error,
+                            node: Some(id),
+                            message: "存在到达此处后没有可选选项的变量状态".into(),
+                        });
+                    }
+                    for c in visible {
+                        let mut next_flags = flags.clone();
+                        if let Some(f) = &c.set_flag {
+                            next_flags.insert(f.flag.clone(), f.value);
+                        }
+                        pending.push_back((c.target.clone(), next_flags));
+                    }
+                }
+                NodeKind::Ending => {}
+            }
+        }
+    }
+    issues
+}
+
+pub fn arrange_nodes(project: &mut Project) {
+    let mut ranks = BTreeMap::new();
+    let mut pending = VecDeque::from([(project.start.clone(), 0usize)]);
+    while let Some((id, rank)) = pending.pop_front() {
+        if ranks.contains_key(&id) {
+            continue;
+        }
+        if let Some(node) = project.node(&id) {
+            ranks.insert(id, rank);
+            pending.extend(
+                node.targets()
+                    .into_iter()
+                    .map(|id| (id.to_owned(), rank + 1)),
+            );
+        }
+    }
+    let last = ranks.values().max().copied().unwrap_or(0) + 1;
+    let mut rows = BTreeMap::<usize, usize>::new();
+    for node in &mut project.nodes {
+        let rank = ranks.get(&node.id).copied().unwrap_or(last);
+        let row = rows.entry(rank).or_default();
+        node.position = [32. + rank as f32 * 285., 32. + *row as f32 * 170.];
+        *row += 1;
+    }
+}

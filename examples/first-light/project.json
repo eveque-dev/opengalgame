@@ -1,0 +1,31 @@
+{
+  "format_version": 1,
+  "id": "lumen-first-light-demo-v1",
+  "title": "雨停之前",
+  "author": "映叙工坊示例",
+  "start": "arrival",
+  "characters": [
+    { "id": "qiao", "name": "乔安", "color": [240, 193, 170], "portrait": "assets/qiao.webp" },
+    { "id": "lin", "name": "林澈", "color": [154, 202, 212], "portrait": "assets/lin.webp" }
+  ],
+  "backgrounds": [
+    { "id": "bay", "name": "雨后的海湾", "file": "assets/bay.webp" },
+    { "id": "city", "name": "夜色中的车站", "file": "assets/city.webp" }
+  ],
+  "flags": { "kept_letter": false },
+  "nodes": [
+    { "id": "arrival", "title": "海湾来信", "kind": "dialogue", "character": "qiao", "background": "bay", "text": "你还是来了。我以为，最后一班列车开走以后，这封信就再也交不到你手里了。", "next": "reply", "position": [30, 30] },
+    { "id": "reply", "title": "尚未说出口", "kind": "dialogue", "character": "lin", "background": "bay", "text": "我想过很多次离开，但总觉得，还有一句话应该当面告诉你。", "next": "letter", "position": [300, 30] },
+    { "id": "letter", "title": "你的选择", "kind": "choice", "character": "qiao", "background": "bay", "text": "雨快停了。要不要留下这封信，等天亮以后再决定？", "choices": [
+      { "text": "接过信，留下来。", "target": "stay", "set_flag": { "flag": "kept_letter", "value": true } },
+      { "text": "把心事说清，赶往车站。", "target": "leave", "set_flag": { "flag": "kept_letter", "value": false } }
+    ], "position": [570, 30] },
+    { "id": "stay", "title": "等一个晴天", "kind": "dialogue", "character": "lin", "background": "bay", "text": "那就等到天亮吧。这一次，我们可以慢慢说。", "next": "promise", "position": [300, 220] },
+    { "id": "promise", "title": "确认约定", "kind": "choice", "character": "qiao", "background": "bay", "text": "你把信收进了口袋。明天，我们还会在这里见面吗？", "choices": [
+      { "text": "会的，我会带着这封信回来。", "target": "morning", "condition": { "flag": "kept_letter", "value": true } }
+    ], "position": [570, 220] },
+    { "id": "leave", "title": "站台上的告别", "kind": "dialogue", "character": "qiao", "background": "city", "text": "去吧。告别不一定需要遗憾；至少这一次，我们都知道对方为什么离开。", "next": "train", "position": [840, 220] },
+    { "id": "morning", "title": "结局：晴天的约定", "kind": "ending", "background": "bay", "text": "清晨，海面第一次亮起来。信还没有拆开，但他们已经约好了下一次见面的时间。\n\n你选择留下，也给了这个故事一个新的开头。", "position": [570, 410] },
+    { "id": "train", "title": "结局：开往明天", "kind": "ending", "background": "city", "text": "末班列车驶出了雨幕。那些迟到的话终于说清，远处的灯，也不再只代表离别。\n\n有些故事，在告别以后才真正开始。", "position": [840, 410] }
+  ]
+}

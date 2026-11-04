@@ -1,0 +1,13 @@
+/target/
+/release/
+/reports/
+/design-system/
+/tools/integrate_v2.py
+/tools/polish_ui.py
+/tools/rewrite_stage_v2.py
+/tools/rename_brand.py
+__pycache__/
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak

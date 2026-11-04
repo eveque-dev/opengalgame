@@ -1,0 +1,70 @@
+# OpenGalgame / OpenGalgame 0.2
+
+Rust 编写的原生 Windows 视觉小说引擎与可视化编辑器。输入人物、背景、对白和选择，即可试玩并导出独立游戏。编辑与运行可离线，不依赖浏览器、Python 或在线服务。
+
+## 一键打开
+
+便携包解压后直接双击 `opengalgame.exe`。源码目录可双击 **从源码编译运行.cmd**，或运行 `cargo run --locked`。入口和源码见 [一键使用说明.md](../一键使用说明.md)。
+
+默认打开《雨停之前：三封来信》，共 **42 个节点、3 个结局、10 条完整选择路径**。另保留 `examples/first-light/project.json` 的 8 节点入门样例。表情组“平静”复用默认立绘，作者可以导入不同表情图片替换。
+
+## 创作流程
+
+1. 新建项目，选一个父目录；编辑器会创建独立项目文件夹。
+2. 在“人物”“背景”“音乐音效”中导入自己的素材。图片支持 PNG/JPG/WebP，音频支持 WAV/MP3/OGG Vorbis/FLAC。素材复制进项目，移动原文件不会断链。
+3. 添加对白、选择、结局，右侧填写内容。也可“批量导入对白”：每行 `人物名：对白`，`[章节名]` 分章，`@背景：名称` 切换已有背景。新人物自动创建；选中对白时插入其后，选中结局时插入其前；选择节点需要先选一个对白再导入、连接分支。
+4. 分支图拖动输出圆点到输入圆点；亦可依次点击两个端口。点击连线修改目标和选项条件。红框提示断链，金框提示循环，试玩经过的路线显示绿线；循环可以是有意设计。
+5. 在“变量”定义布尔变量，再为选择设置显示条件、赋值。回退同时恢复变量。章节筛选、全文搜索/替换与专注写作适合长篇整理。
+6. 调整发言人表情、同屏人物、立绘位置/大小、淡入淡出/滑入、项目 BGM 与节点音效。“项目设置”可设置标题背景、主题色、字号、打字速度和游戏图标。
+7. F5 从头试玩，或从当前节点试玩。检查报告定位缺失引用、素材、不可达节点和条件死路。修复错误后“导出游戏”。
+
+分支图可在试玩中查看当前路线，此时连接和节点位置只读。人物/背景支持标签、引用数量，移除前提示受影响场景；移除不删除磁盘原图，可以撤销。
+
+## 保存与恢复
+
+Ctrl+S 正式保存；Ctrl+Z 撤销；Ctrl+Y 重做。正式保存保留前一版 `.json.bak`。未保存改动每 30 秒生成独立恢复副本；异常退出后重开同一项目会提示恢复到内存，仍需手动保存。主动“放弃改动”会停用旧恢复副本。
+
+新安装的最近项目和恢复副本位于 `%LOCALAPPDATA%/opengalgame/editor/`；已有旧版数据时继续沿用原位置。无法保证保留崩溃前最后 30 秒的修改，重要改动后请及时 Ctrl+S。
+
+## 导出的游戏
+
+标题菜单包含开始、继续、存档读取、设置、结局收藏。设置可调整正文、打字速度、音乐/音效音量和减少动画，按项目保留。完成的结局在本机解锁。
+
+空格/右方向键继续，左方向键回退，数字 1–9 选择可见选项，Esc 打开存档。打字机尚未显示完时，第一次继续显示整段。自动阅读按字数计时，遇到选项、菜单或失焦暂停；不包含语音合成。
+
+提供自动存档和 3 个手动格；手动存档附场景缩略图、标题与时间。还有对白回看、全屏和返回标题。新存档、设置与结局收藏位于 `%LOCALAPPDATA%/opengalgame/saves/<项目标识哈希>/`，旧版数据继续沿用原位置，不同项目独立保存。剧情或素材路径变化后，旧存档可能不匹配，会拒绝读取。
+
+分享 **整个导出文件夹**，保留 `Game.exe`、`game.json`、`assets/` 和许可文件。玩家解压双击 `Game.exe`。自定义图标写入 EXE 资源，同时用于窗口图标。
+
+## 构建与验证
+
+开发电脑需 Rust MSVC、Visual Studio C++ Build Tools 与 Windows SDK；Python 3.11+ 用于打包。玩家与便携版使用者不需要这些工具。
+
+```powershell
+cargo test --locked
+cargo clippy --all-targets --locked -- -D warnings
+cargo build --release --locked
+python tools/package_windows.py
+```
+
+```powershell
+target/release/opengalgame.exe --validate examples/long-form/project.json
+target/release/opengalgame.exe --play examples/long-form/project.json
+target/release/opengalgame.exe --export examples/long-form/project.json exports/MyGame
+```
+
+导出目标须不存在或为空。项目以 UTF-8 JSON 存储；新增字段有默认值，0.1 项目可打开。`tests/engine.rs` 与 `tests/authoring_v2.rs` 验证分支、存档回退、导入、恢复、媒体迁移和 42 节点全路径。
+
+## 源码与兼容性
+
+- `src/model.rs`：数据格式、图与条件校验、自动布局。
+- `src/authoring.rs`：批量导入、查找替换、端口连接、循环检测。
+- `src/runtime.rs`：推进、选择、变量、回退、存档匹配。
+- `src/recovery.rs` / `src/project_io.rs`：恢复、最近项目、保存、素材与导出。
+- `src/studio.rs` / `src/studio/advanced.rs`：编辑器、共用舞台、菜单、素材库。
+- `src/sound.rs` / `src/native_icon.rs`：音轨播放与 Windows EXE 图标。
+- `DESIGN.md`：原生工作区设计决策。
+
+目标 Windows 10/11 x64，已在本机验证，尚未覆盖全部显卡和系统版本。需要 OpenGL 3.3 驱动；C 运行库静态链接，不需要 WebView。中文读取本机微软雅黑/黑体，不分发系统字体。暂无代码签名、`.rpy` 导入、配音轨编辑、任意脚本插件或其他平台导出。
+
+示例对白原创；图片复用自本工作区此前生成的演示素材；音乐与提示音为程序合成。真实作品请使用自己有权使用的素材。组件许可见 `[组件声明](../THIRD_PARTY.md)` 和发布包 `licenses/`。

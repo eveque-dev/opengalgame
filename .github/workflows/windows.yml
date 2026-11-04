@@ -1,0 +1,54 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Test, build and package
+    runs-on: windows-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Prepare Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          rustup default stable
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Check with Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Test
+        run: cargo test --locked
+      - name: Build Windows executable
+        run: cargo build --release --locked
+      - name: Package and verify archives
+        run: python tools/package_windows.py
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $package = Get-Content reports/package-opengalgame.json -Raw | ConvertFrom-Json
+          if ($env:RELEASE_TAG -ne "v$($package.version)") { throw 'Tag and Cargo version differ' }
+          $assets = @($package.artifacts | ForEach-Object { Join-Path 'release' $_.file })
+          $assets += 'release/SHA256SUMS.txt'
+          gh release create $env:RELEASE_TAG @assets --verify-tag --latest --title "OpenGalgame $($package.version)" --notes-file docs/release-v0.2.0.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
