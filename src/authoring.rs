@@ -76,6 +76,7 @@ pub fn import_dialogue(
     let mut created = vec![];
     let mut reserved: std::collections::HashSet<String> =
         draft.nodes.iter().map(|n| n.id.clone()).collect();
+    reserved.extend(draft.save_compatibility.node_aliases.keys().cloned());
     let mut next_import = 1usize;
     let mut background = anchor.as_ref().and_then(|n| n.background.clone());
     for line in source.lines().map(str::trim).filter(|s| !s.is_empty()) {

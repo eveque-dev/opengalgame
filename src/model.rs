@@ -266,7 +266,9 @@ impl Project {
     pub fn next_id(&self) -> String {
         (1..)
             .map(|n| format!("scene_{n}"))
-            .find(|id| self.node(id).is_none())
+            .find(|id| {
+                self.node(id).is_none() && !self.save_compatibility.node_aliases.contains_key(id)
+            })
             .unwrap()
     }
     pub fn rename_node(&mut self, old: &str, new: &str) -> anyhow::Result<()> {

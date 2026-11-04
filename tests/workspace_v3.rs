@@ -16,6 +16,20 @@ fn oversized_project_save_preserves_the_last_readable_file_and_backup() {
 fn demo() -> Project {
     serde_json::from_str(include_str!("../examples/first-light/project.json")).unwrap()
 }
+
+#[test]
+fn generated_nodes_and_imports_never_reuse_ids_reserved_for_saved_game_migration() {
+    let mut p = template_project("迁移标识", ProjectTemplate::Blank);
+    p.rename_node("opening", "scene_1").unwrap();
+    p.rename_node("scene_1", "opening").unwrap();
+    assert_eq!(p.next_id(), "scene_2");
+    authoring::import_dialogue(&mut p, "旁白：第一次导入", 0, "章节").unwrap();
+    p.rename_node("import_1", "middle").unwrap();
+    authoring::import_dialogue(&mut p, "旁白：第二次导入", 0, "章节").unwrap();
+    assert!(p.node("import_1").is_none());
+    assert!(p.node("import_2").is_some());
+    assert!(validate(&p, None).is_empty());
+}
 fn scratch() -> PathBuf {
     let p = std::env::temp_dir().join(unique_id());
     std::fs::create_dir_all(&p).unwrap();
