@@ -7,6 +7,9 @@ OpenGalgame 是 Rust 原生桌面应用，编辑器与独立游戏复用剧情�
 | `src/workspace.rs` / `src/catalog.rs` | 多项目工作区、作品目录、待办、异步加载与导出队列 |
 | `src/nodes.rs` / `src/compatibility.rs` | 共享节点快照、按标识索引、版本化存档兼容与旧版基线 |
 | `src/studio/images.rs` / `src/studio/checkpoints.rs` | 后台图片解码、纹理缓存、恢复副本与写入取消 |
+| `src/logic.rs` | 有类型的值、复合条件与事务式赋值 |
+| `src/debugger.rs` / `src/spreadsheet.rs` | 调试命令、确定性路线复现、CSV 解析与预览 |
+| `src/studio/logic_ui.rs` / `src/studio/debug_ui.rs` / `src/studio/table_ui.rs` | 可视化规则、调试台与虚拟化表格 |
 | `src/main.rs` | 原生窗口与命令行入口 |
 | `src/model.rs` | 项目格式、节点、素材、图与条件校验 |
 | `src/runtime.rs` | 推进、选项、变量、回退、存档与历史 |
@@ -48,3 +51,7 @@ python tools/package_windows.py
 打包器从 Cargo.toml 读取版本，收集当前 Windows 依赖的许可声明，验证样例与导出结果，再生成编辑器、独立游戏、源码 ZIP 和校验摘要。
 
 `.github/workflows/windows.yml` 在 Windows runner 上运行格式、静态检查、测试与构建；`v*` 标签触发打包并创建 GitHub Release。自动化令牌仅用于当前仓库的发布，日常 Git 远端使用 SSH。
+
+0.4 逻辑项目使用格式 2，保留格式 1 的旧布尔变量。`variables` 存储布尔/整数/文本初始值，选择的 `when` 存储 Compare/All/Any 条件，`effects` 存储 Set/Add 操作。旧 `condition`、`set_flag` 保留。新存档格式 3，带变量类型声明；路线文件使用独立版本与严格工程指纹。
+
+命令行复现：`opengalgame.exe --replay project.json route.json`，失败返回非零，不覆盖文件。

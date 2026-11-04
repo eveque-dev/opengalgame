@@ -154,12 +154,16 @@ pub fn template_project(title: &str, template: ProjectTemplate) -> Project {
                 target: "ending".into(),
                 condition: None,
                 set_flag: None,
+                when: None,
+                effects: vec![],
             },
             Choice {
                 text: "出发".into(),
                 target: "another_ending".into(),
                 condition: None,
                 set_flag: None,
+                when: None,
+                effects: vec![],
             },
         ];
         let mut other = Node::new("another_ending".into(), NodeKind::Ending, 3);
@@ -177,6 +181,7 @@ pub fn template_project(title: &str, template: ProjectTemplate) -> Project {
         characters: vec![],
         backgrounds: vec![],
         flags: Default::default(),
+        variables: Default::default(),
         nodes: nodes.into(),
         audio: vec![],
         presentation: Default::default(),

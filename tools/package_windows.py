@@ -76,15 +76,22 @@ for name, version in sorted(packages):
     index.append({"name": name, "version": version, "license": metadata.get("license", "see package"),
                   "repository": metadata.get("repository", ""), "files": saved})
 (licenses / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
-for example in ["first-light", "long-form"]:
+for example in ["first-light", "long-form", "harbor-signals"]:
     subprocess.run([str(editor / "opengalgame.exe"), "--validate", str(editor / f"examples/{example}/project.json")], check=True)
+subprocess.run([str(editor / "opengalgame.exe"), "--replay",
+                str(editor / "examples/harbor-signals/project.json"),
+                str(editor / "examples/harbor-signals/route-promise.json")], check=True)
 
-game_name = f"three-letters-v{VERSION}-windows-x64"
-game = fresh_directory(game_name)
-subprocess.run([str(editor / "opengalgame.exe"), "--export", str(editor / "examples/long-form/project.json"), str(game)], check=True)
-subprocess.run([str(game / "Game.exe"), "--validate", str(game / "game.json")], check=True)
+games = []
+for prefix, example in [("three-letters", "long-form"), ("harbor-signals", "harbor-signals")]:
+    name = f"{prefix}-v{VERSION}-windows-x64"
+    folder = fresh_directory(name)
+    subprocess.run([str(editor / "opengalgame.exe"), "--export", str(editor / f"examples/{example}/project.json"), str(folder)], check=True)
+    subprocess.run([str(folder / "Game.exe"), "--validate", str(folder / "game.json")], check=True)
+    games.append((name, folder))
+game = games[0][1]
 artifacts = []
-for name, folder in [(editor_name, editor), (game_name, game)]:
+for name, folder in [(editor_name, editor)] + games:
     files = {p.relative_to(folder).as_posix(): p for p in folder.rglob("*") if p.is_file()}
     artifacts.append(archive_files(name, files))
 
@@ -95,7 +102,7 @@ for folder in ["src", "tests", "examples", ".cargo", "docs", ".github"]:
             source_files[file.relative_to(ROOT).as_posix()] = file
 for name in ["Cargo.toml", "Cargo.lock", "README.md", "DESIGN.md", "LICENSE", "THIRD_PARTY.md", "CONTRIBUTING.md",
              ".gitignore", ".gitattributes", "一键使用说明.md", "打开编辑器.cmd", "从源码编译运行.cmd",
-             "tools/package_windows.py", "tools/make_long_demo.py"]:
+             "tools/package_windows.py", "tools/make_long_demo.py", "tools/make_v4_demo.py"]:
     source_files[name] = ROOT / name
 artifacts.append(archive_files(f"opengalgame-v{VERSION}-source", source_files))
 standalone = RELEASE / "opengalgame.exe"
@@ -104,7 +111,7 @@ artifacts.append({"file": standalone.name, "bytes": standalone.stat().st_size,
                   "sha256": hashlib.sha256(standalone.read_bytes()).hexdigest()})
 (RELEASE / "SHA256SUMS.txt").write_text("".join(f"{a['sha256']}  {a['file']}\n" for a in artifacts), encoding="utf-8")
 report = {"version": VERSION, "platform": "x86_64-pc-windows-msvc", "editor_directory": str(editor),
-          "sample_directory": str(game), "dependencies_with_license_metadata": len(index), "artifacts": artifacts}
+          "sample_directory": str(game), "logic_sample_directory": str(games[1][1]), "dependencies_with_license_metadata": len(index), "artifacts": artifacts}
 (ROOT / "reports").mkdir(exist_ok=True)
 (ROOT / "reports/package-opengalgame.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 print(json.dumps(report, ensure_ascii=True, indent=2))

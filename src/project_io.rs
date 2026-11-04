@@ -22,9 +22,9 @@ pub fn read_project(file: &Path) -> Result<Project> {
     let text = fs::read_to_string(file).context("无法读取项目，请检查路径和文件编码")?;
     let mut p: Project =
         serde_json::from_str(text.trim_start_matches('\u{feff}')).context("JSON 格式错误")?;
-    ensure!(p.format_version == 1, "项目格式版本不兼容");
+    ensure!([1, 2].contains(&p.format_version), "项目格式版本不兼容");
     let value: serde_json::Value = serde_json::from_str(text.trim_start_matches('\u{feff}'))?;
-    if value.get("save_compatibility").is_none() {
+    if p.format_version == 1 && value.get("save_compatibility").is_none() {
         let old = p.clone();
         crate::compatibility::register_legacy_baseline(&mut p, &old)?;
     }
@@ -45,6 +45,10 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 pub fn save_project(file: &Path, project: &Project) -> Result<()> {
+    ensure!(
+        !project.uses_typed_logic() || project.format_version >= 2,
+        "新增变量和复合条件需要项目格式 2"
+    );
     let bytes = serde_json::to_vec_pretty(project)?;
     ensure!(
         bytes.len() <= 20 * 1024 * 1024,

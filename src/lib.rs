@@ -9,3 +9,7 @@ pub mod project_io;
 pub mod recovery;
 pub mod runtime;
 pub mod sound;
+
+pub mod debugger;
+pub mod logic;
+pub mod spreadsheet;

@@ -2,7 +2,11 @@ use eframe::egui::{self, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, V
 use opengalgame::{model::*, project_io::*, runtime::*};
 mod advanced;
 mod checkpoints;
+mod debug_ui;
 mod images;
+mod logic_ui;
+mod table_ui;
+mod v4;
 use advanced::Advanced;
 use std::{
     collections::HashMap,
@@ -23,6 +27,7 @@ const WARN: Color32 = Color32::from_rgb(235, 199, 126);
 #[derive(Clone, Copy, PartialEq)]
 enum Section {
     Script,
+    Table,
     Characters,
     Backgrounds,
     Flags,
@@ -51,6 +56,7 @@ pub(crate) enum WorkspaceRequest {
     },
 }
 pub struct Studio {
+    v4: v4::V4,
     pub(crate) managed: bool,
     pub(crate) external_modal: bool,
     alias_old: String,
@@ -171,6 +177,7 @@ impl Studio {
             .map(|n| n.id.clone())
             .unwrap_or_default();
         Self {
+            v4: Default::default(),
             managed: false,
             external_modal: false,
             alias_old: String::new(),
@@ -242,6 +249,7 @@ impl Studio {
         &self.path
     }
     pub(crate) fn pause(&mut self) {
+        self.v4.debug.running = false;
         self.auto = false;
         self.advanced.sound.stop();
         self.images.clear();
@@ -354,12 +362,21 @@ impl Studio {
         } else {
             Runtime::new(&self.project)
         });
+        if !self.player_only
+            && let Some(runtime) = &self.runtime
+        {
+            self.v4.debug.start(&self.project, runtime);
+            if from_selected {
+                self.v4.debug.tainted = true;
+            }
+        }
         self.play_fingerprint = fingerprint(&self.project);
         self.advanced.scene_key.clear();
         self.advanced.bulk_open = false;
         self.advanced.replace_open = false;
         self.advanced.edge = None;
         self.advanced.title_screen = false;
+        self.section = Section::Script;
         self.graph = false;
         self.auto = false;
         self.auto_started = Instant::now();
@@ -400,12 +417,39 @@ impl Studio {
             self.message(Err::<String, _>(e));
             return;
         }
+        if !self.player_only {
+            if matches!(action, Action::Restart) {
+                self.v4.debug.start(&self.project, runtime);
+            } else {
+                let command = match action {
+                    Action::Next => opengalgame::debugger::Command::Advance { choice: None },
+                    Action::Choice(i) => {
+                        opengalgame::debugger::Command::Advance { choice: Some(i) }
+                    }
+                    Action::Back => opengalgame::debugger::Command::Back,
+                    Action::Restart => unreachable!(),
+                };
+                if let Some(route) = &mut self.v4.debug.route
+                    && let Err(e) = route.record(command, runtime)
+                {
+                    self.v4.debug.message = e.to_string();
+                }
+                self.v4.debug.observe(&self.project, runtime);
+                if self.v4.debug.breakpoints.contains(&runtime.current.node) {
+                    self.auto = false;
+                }
+            }
+        }
         self.auto_started = Instant::now();
         if self.player_only {
             self.save_slot("auto");
         }
     }
     fn save_slot(&mut self, slot: &str) {
+        if !self.player_only && self.v4.debug.tainted {
+            self.message(Ok("调试状态不写入玩家存档，请导出调试路线。"));
+            return;
+        }
         if let Some(r) = &self.runtime {
             let result = write_json(
                 &save_directory(&self.project.id).join(format!("{slot}.json")),
@@ -429,6 +473,9 @@ impl Studio {
         })();
         match result {
             Ok((r, report)) => {
+                if !self.player_only {
+                    self.v4.debug.start(&self.project, &r);
+                }
                 self.play_fingerprint = fingerprint(&self.project);
                 self.runtime = Some(r);
                 self.advanced.title_screen = false;
@@ -493,6 +540,7 @@ impl Studio {
                         characters: vec![],
                         backgrounds: vec![],
                         flags: Default::default(),
+                        variables: Default::default(),
                         audio: vec![],
                         presentation: Default::default(),
                         tasks: vec![],
@@ -662,6 +710,7 @@ impl Studio {
                 ui.horizontal(|ui| {
                     for (section, name) in [
                         (Section::Script, "剧本"),
+                        (Section::Table, "表格"),
                         (Section::Characters, "人物"),
                         (Section::Backgrounds, "背景"),
                         (Section::Flags, "变量"),
@@ -947,12 +996,16 @@ impl Studio {
                                                 target: target.clone(),
                                                 condition: None,
                                                 set_flag: None,
+                                                when: None,
+                                                effects: vec![],
                                             },
                                             Choice {
                                                 text: "另一个选择".into(),
                                                 target,
                                                 condition: None,
                                                 set_flag: None,
+                                                when: None,
+                                                effects: vec![],
                                             },
                                         ];
                                     }
@@ -977,6 +1030,7 @@ impl Studio {
             let inline_errors:Vec<_>=self.issues.iter().filter(|i|i.node.as_deref()==Some(&node_id)&&i.severity==Severity::Error).map(|i|i.message.clone()).collect();
             for message in inline_errors{ui.colored_label(BAD,message);}
             egui::ScrollArea::vertical().id_salt(("node_fields",&node_id)).auto_shrink([false,false]).show(ui,|ui|{ui.add_enabled_ui(self.runtime.is_none(),|ui| {
+                let defs:Vec<_>=opengalgame::logic::definitions(&self.project).into_iter().collect();
                 let targets=self.node_targets();
                 let chars:Vec<_>=self.project.characters.iter().map(|c|(c.id.clone(),c.name.clone())).collect();
                 let bgs:Vec<_>=self.project.backgrounds.iter().map(|b|(b.id.clone(),b.name.clone())).collect();
@@ -1006,12 +1060,13 @@ impl Studio {
                                 egui::CollapsingHeader::new("条件与变量").id_salt("conditions").default_open(choice.condition.is_some()||choice.set_flag.is_some()).show(ui,|ui|{
                                     flag_control(ui,"仅满足条件时显示",&mut choice.condition,&flags);
                                     flag_control(ui,"选择后改变变量",&mut choice.set_flag,&flags);
+                                    logic_ui::choice_logic(ui,choice,&defs);
                                     if flags.is_empty(){ui.label(RichText::new("在「变量」页先创建一个变量。").small().color(MUTED));}
                                 });
                             });
                         });}
                         if let Some(index)=remove{node.choices.remove(index);}
-                        if ui.add_sized([ui.available_width(),36.],egui::Button::new("+ 添加一个选项")).clicked(){node.choices.push(Choice{text:"新的选择".into(),target:self.project.start.clone(),condition:None,set_flag:None});}
+                        if ui.add_sized([ui.available_width(),36.],egui::Button::new("+ 添加一个选项")).clicked(){node.choices.push(Choice{text:"新的选择".into(),target:self.project.start.clone(),condition:None,set_flag:None,when:None,effects:vec![]});}
                     },
                     NodeKind::Ending=>{ui.colored_label(GOOD,"这是一个结局，不再继续跳转。");}
                 }
@@ -1634,33 +1689,39 @@ impl Studio {
     }
     fn flags(&mut self, ui: &mut egui::Ui) {
         ui.heading("故事变量");
-        ui.label("布尔变量用来记录玩家的选择。可在选项中设置变量，或按变量显示选项。");
-        ui.add_space(14.);
-        for (key, value) in &mut self.project.flags {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(key).color(ACCENT));
-                ui.checkbox(value, "初始值为真");
-            });
-        }
-        ui.separator();
-        ui.label("新变量标识（例如 promised）");
-        ui.text_edit_singleline(&mut self.new_flag);
-        if ui.button("添加变量").clicked() {
-            let key = self.new_flag.trim().to_owned();
-            if key.is_empty() || self.project.flags.contains_key(&key) {
-                self.message(Err::<String, _>(anyhow::anyhow!("变量标识不能为空或重复")));
-            } else {
-                self.project.flags.insert(key, false);
-                self.new_flag.clear();
+        self.typed_variables(ui);
+        ui.collapsing("旧项目兼容布尔变量", |ui| {
+            ui.label("保留原有标识，可在旧条件或复合条件中使用。");
+            ui.add_space(14.);
+            for (key, value) in &mut self.project.flags {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(key).color(ACCENT));
+                    ui.checkbox(value, "初始值为真");
+                });
             }
-        }
-        if let Some(r) = &self.runtime {
             ui.separator();
-            ui.label("当前试玩变量");
-            for (key, value) in &r.current.flags {
-                ui.label(format!("{key} = {value}"));
+            ui.label("新变量标识（例如 promised）");
+            ui.text_edit_singleline(&mut self.new_flag);
+            if ui.button("添加变量").clicked() {
+                let key = self.new_flag.trim().to_owned();
+                if key.is_empty()
+                    || self.project.flags.contains_key(&key)
+                    || self.project.variables.contains_key(&key)
+                {
+                    self.message(Err::<String, _>(anyhow::anyhow!("变量标识不能为空或重复")));
+                } else {
+                    self.project.flags.insert(key, false);
+                    self.new_flag.clear();
+                }
             }
-        }
+            if let Some(r) = &self.runtime {
+                ui.separator();
+                ui.label("当前试玩变量");
+                for (key, value) in &r.current.flags {
+                    ui.label(format!("{key} = {value}"));
+                }
+            }
+        });
     }
     fn checks(&mut self, ui: &mut egui::Ui) {
         ui.heading("项目检查");
@@ -1746,7 +1807,7 @@ impl Studio {
             }
         }
         ui.separator();
-        ui.label(RichText::new("OpenGalgame 0.3 · Rust 原生视觉小说引擎").color(ACCENT));
+        ui.label(RichText::new("OpenGalgame 0.4 · Rust 原生视觉小说引擎").color(ACCENT));
         ui.collapsing("存档兼容与节点迁移",|ui|{
             ui.label("调整对白、图片、布局和新增未经过的章节可沿用 0.3 存档。改动已经过节点的类型、跳转、条件或变量时会阻止读取，并说明原因。");
             ui.label("使用节点「更新标识」会自动记录迁移。手动填写可用于删除旧节点后指定替代节点；迁移仍会检查控制流程。");
@@ -1904,6 +1965,7 @@ impl eframe::App for Studio {
                     })
             });
         let before = possible_edit.then(|| self.project.clone());
+        self.debug_tick(ctx);
         self.images.poll(ctx);
         self.advanced_tick(ctx);
         self.skip_history = false;
@@ -1932,7 +1994,9 @@ impl eframe::App for Studio {
                 self.begin(false);
             }
         }
-        let modal = self.external_modal
+        let modal = self.v4.debug.open
+            || self.v4.table.preview.is_some()
+            || self.external_modal
             || self.saves_open
             || self.log_open
             || self.pending.is_some()
@@ -2046,7 +2110,7 @@ impl eframe::App for Studio {
                 });
         } else {
             self.toolbar(ctx);
-            if !self.advanced.focus {
+            if !self.advanced.focus && self.section != Section::Table {
                 self.sidebar(ctx);
             }
             if self.section == Section::Script && (!self.advanced.focus || self.runtime.is_some()) {
@@ -2065,6 +2129,7 @@ impl eframe::App for Studio {
                         ui.add_enabled_ui(
                             self.runtime.is_none() || self.section == Section::Check,
                             |ui| match self.section {
+                                Section::Table => self.table_editor(ui),
                                 Section::Characters => self.characters(ui),
                                 Section::Backgrounds => self.backgrounds(ui),
                                 Section::Flags => self.flags(ui),
@@ -2077,8 +2142,13 @@ impl eframe::App for Studio {
                     }
                 });
         }
+        self.debugger_window(ctx);
+        self.csv_preview(ctx);
         self.dialogs(ctx);
         self.advanced_dialogs(ctx);
+        if before.is_some() && self.project.uses_typed_logic() {
+            self.project.format_version = 2;
+        }
         if let Some(before) = before
             && self.project != before
         {

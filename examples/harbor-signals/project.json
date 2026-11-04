@@ -1,0 +1,445 @@
+{
+  "format_version": 2,
+  "id": "opengalgame-harbor-signals-v4",
+  "title": "灯塔来信",
+  "author": "OpenGalgame · 0.4 验收故事",
+  "start": "return",
+  "characters": [
+    {
+      "id": "qiao",
+      "name": "乔安",
+      "color": [
+        240,
+        193,
+        170
+      ],
+      "portrait": "assets/qiao.webp"
+    },
+    {
+      "id": "lin",
+      "name": "林澈",
+      "color": [
+        154,
+        202,
+        212
+      ],
+      "portrait": "assets/lin.webp"
+    },
+    {
+      "id": "cen",
+      "name": "岑舟",
+      "color": [
+        154,
+        202,
+        212
+      ],
+      "portrait": "assets/lin.webp"
+    },
+    {
+      "id": "shen",
+      "name": "沈音",
+      "color": [
+        240,
+        193,
+        170
+      ],
+      "portrait": "assets/qiao.webp"
+    }
+  ],
+  "backgrounds": [
+    {
+      "id": "bay",
+      "name": "雨后的海湾",
+      "file": "assets/bay.webp"
+    },
+    {
+      "id": "city",
+      "name": "夜色中的车站",
+      "file": "assets/city.webp"
+    }
+  ],
+  "flags": {
+    "read_letter": false
+  },
+  "nodes": [
+    {
+      "id": "return",
+      "title": "回到灯塔",
+      "text": "离开三年后，你又在码头听见了自己的名字。乔安抱着一只旧信箱，像在等一个终于肯回信的人。",
+      "chapter": "第一章 · 归来",
+      "kind": "dialogue",
+      "character": "qiao",
+      "background": "bay",
+      "next": "meeting",
+      "choices": [],
+      "position": [
+        32,
+        32
+      ]
+    },
+    {
+      "id": "meeting",
+      "title": "第一件小事",
+      "text": "信箱的锁生锈了。林澈说，修好它，也许就能找到当年没有寄出的那封信。",
+      "chapter": "第一章 · 归来",
+      "kind": "choice",
+      "character": null,
+      "background": "bay",
+      "next": null,
+      "choices": [
+        {
+          "text": "留下帮乔安修锁",
+          "target": "lock",
+          "condition": null,
+          "set_flag": null,
+          "effects": [
+            {
+              "kind": "add",
+              "variable": "affinity",
+              "amount": 30
+            },
+            {
+              "kind": "add",
+              "variable": "clues",
+              "amount": 1
+            },
+            {
+              "kind": "set",
+              "variable": "promised",
+              "value": true
+            },
+            {
+              "kind": "set",
+              "variable": "signature",
+              "value": "归乡人"
+            }
+          ]
+        },
+        {
+          "text": "先听岑舟讲当年的事",
+          "target": "lock",
+          "condition": null,
+          "set_flag": null,
+          "effects": [
+            {
+              "kind": "add",
+              "variable": "clues",
+              "amount": 2
+            }
+          ]
+        }
+      ],
+      "position": [
+        317,
+        32
+      ]
+    },
+    {
+      "id": "lock",
+      "title": "锁里的纸屑",
+      "text": "岑舟记得每班离港的船，却一直没有说出最后一个乘客的名字。",
+      "chapter": "第一章 · 归来",
+      "kind": "dialogue",
+      "character": "cen",
+      "background": "bay",
+      "next": "archive",
+      "choices": [],
+      "position": [
+        602,
+        32
+      ]
+    },
+    {
+      "id": "archive",
+      "title": "档案室的灯",
+      "text": "沈音翻出值班簿：那天的灯塔并没有熄灭，只是有人换了守灯的班。",
+      "chapter": "第一章 · 归来",
+      "kind": "dialogue",
+      "character": "shen",
+      "background": "bay",
+      "next": "letter",
+      "choices": [],
+      "position": [
+        887,
+        32
+      ]
+    },
+    {
+      "id": "letter",
+      "title": "拆开那封信",
+      "text": "乔安把信递给你。这一次，她没有替你决定是否打开。",
+      "chapter": "第二章 · 旧信",
+      "kind": "choice",
+      "character": null,
+      "background": "bay",
+      "next": null,
+      "choices": [
+        {
+          "text": "读完信，把误会说清",
+          "target": "reply",
+          "condition": null,
+          "set_flag": null,
+          "effects": [
+            {
+              "kind": "set",
+              "variable": "read_letter",
+              "value": true
+            },
+            {
+              "kind": "add",
+              "variable": "affinity",
+              "amount": 20
+            }
+          ]
+        },
+        {
+          "text": "先把信收好，继续查值班簿",
+          "target": "reply",
+          "condition": null,
+          "set_flag": null,
+          "effects": [
+            {
+              "kind": "add",
+              "variable": "clues",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "position": [
+        32,
+        222
+      ]
+    },
+    {
+      "id": "reply",
+      "title": "迟到的解释",
+      "text": "林澈承认自己替朋友保管了信，却不知道沉默也会变成一道门。",
+      "chapter": "第二章 · 旧信",
+      "kind": "dialogue",
+      "character": "lin",
+      "background": "bay",
+      "next": "witness",
+      "choices": [],
+      "position": [
+        317,
+        222
+      ]
+    },
+    {
+      "id": "witness",
+      "title": "另一位守灯人",
+      "text": "沈音说，证据能解释过去，却不能替任何人选择明天。",
+      "chapter": "第二章 · 旧信",
+      "kind": "dialogue",
+      "character": "shen",
+      "background": "bay",
+      "next": "departure",
+      "choices": [],
+      "position": [
+        602,
+        222
+      ]
+    },
+    {
+      "id": "departure",
+      "title": "潮水转向",
+      "text": "天快亮了。五条路都通向海边，只有一条会成为你的下一封信。",
+      "chapter": "第三章 · 明天",
+      "kind": "dialogue",
+      "character": "cen",
+      "background": "bay",
+      "next": "decision",
+      "choices": [],
+      "position": [
+        887,
+        222
+      ]
+    },
+    {
+      "id": "decision",
+      "title": "你的答案",
+      "text": "你准备把怎样的答案留在信箱里？隐藏选项取决于之前的好感、线索、承诺与署名。",
+      "chapter": "第三章 · 明天",
+      "kind": "choice",
+      "character": null,
+      "background": "bay",
+      "next": null,
+      "choices": [
+        {
+          "text": "和乔安一起留下守灯",
+          "target": "ending_promise",
+          "condition": null,
+          "set_flag": null,
+          "when": {
+            "kind": "all",
+            "items": [
+              {
+                "kind": "compare",
+                "variable": "affinity",
+                "op": "ge",
+                "value": 50
+              },
+              {
+                "kind": "compare",
+                "variable": "read_letter",
+                "op": "eq",
+                "value": true
+              }
+            ]
+          }
+        },
+        {
+          "text": "把值班簿中的真相公开",
+          "target": "ending_truth",
+          "condition": null,
+          "set_flag": null,
+          "when": {
+            "kind": "any",
+            "items": [
+              {
+                "kind": "compare",
+                "variable": "clues",
+                "op": "ge",
+                "value": 2
+              },
+              {
+                "kind": "compare",
+                "variable": "promised",
+                "op": "eq",
+                "value": true
+              }
+            ]
+          }
+        },
+        {
+          "text": "搭第一班船，去新的城市",
+          "target": "ending_travel",
+          "condition": null,
+          "set_flag": null
+        },
+        {
+          "text": "保留没有拆开的信，约定下次见面",
+          "target": "ending_quiet",
+          "condition": null,
+          "set_flag": null,
+          "when": {
+            "kind": "all",
+            "items": [
+              {
+                "kind": "compare",
+                "variable": "affinity",
+                "op": "ge",
+                "value": 30
+              },
+              {
+                "kind": "compare",
+                "variable": "read_letter",
+                "op": "eq",
+                "value": false
+              }
+            ]
+          }
+        },
+        {
+          "text": "以旅人的名字寄出一封新信",
+          "target": "ending_letter",
+          "condition": null,
+          "set_flag": null,
+          "when": {
+            "kind": "compare",
+            "variable": "signature",
+            "op": "eq",
+            "value": "旅人"
+          }
+        }
+      ],
+      "position": [
+        32,
+        412
+      ]
+    },
+    {
+      "id": "ending_promise",
+      "title": "结局：共同守灯",
+      "text": "你们重新排了一张值班表。约定终于从一句话，变成了每天都会亮起的灯。",
+      "chapter": "第三章 · 明天",
+      "kind": "ending",
+      "character": "qiao",
+      "background": "bay",
+      "next": null,
+      "choices": [],
+      "position": [
+        317,
+        412
+      ]
+    },
+    {
+      "id": "ending_truth",
+      "title": "结局：有名的真相",
+      "text": "你和岑舟把每个日期都核对了一遍。港口公告栏上，终于没有被省略的名字。",
+      "chapter": "第三章 · 明天",
+      "kind": "ending",
+      "character": "cen",
+      "background": "bay",
+      "next": null,
+      "choices": [],
+      "position": [
+        602,
+        412
+      ]
+    },
+    {
+      "id": "ending_travel",
+      "title": "结局：海的另一边",
+      "text": "林澈替你提着行李，走到船边才松手。分别也可以是一种认真回答。",
+      "chapter": "第三章 · 明天",
+      "kind": "ending",
+      "character": "lin",
+      "background": "bay",
+      "next": null,
+      "choices": [],
+      "position": [
+        887,
+        412
+      ]
+    },
+    {
+      "id": "ending_quiet",
+      "title": "结局：未拆封的明天",
+      "text": "乔安没有催你拆信。你们把下次见面的日期写在信封背面。",
+      "chapter": "第三章 · 明天",
+      "kind": "ending",
+      "character": "qiao",
+      "background": "bay",
+      "next": null,
+      "choices": [],
+      "position": [
+        32,
+        602
+      ]
+    },
+    {
+      "id": "ending_letter",
+      "title": "结局：第一封新信",
+      "text": "沈音借给你钢笔。你写下旅人的名字，决定从这一页重新认识这座港口。",
+      "chapter": "第三章 · 明天",
+      "kind": "ending",
+      "character": "shen",
+      "background": "bay",
+      "next": null,
+      "choices": [],
+      "position": [
+        317,
+        602
+      ]
+    }
+  ],
+  "variables": {
+    "affinity": 0,
+    "clues": 0,
+    "signature": "旅人",
+    "promised": false
+  },
+  "tasks": []
+}

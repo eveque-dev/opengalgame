@@ -34,6 +34,8 @@ pub struct LegacyBaseline {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct SaveCompatibility {
     pub nodes: BTreeMap<String, NodeSignature>,
+    #[serde(default)]
+    pub variables: BTreeMap<String, crate::logic::ValueKind>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct NodeSignature {
@@ -46,6 +48,10 @@ pub struct ChoiceSignature {
     pub target: String,
     pub condition: Option<FlagValue>,
     pub set_flag: Option<FlagValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<crate::logic::Condition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<crate::logic::Effect>,
 }
 impl NodeSignature {
     pub fn of(node: &Node) -> Self {
@@ -63,6 +69,8 @@ impl NodeSignature {
                         target: c.target.clone(),
                         condition: c.condition.clone(),
                         set_flag: c.set_flag.clone(),
+                        when: c.when.clone(),
+                        effects: c.effects.clone(),
                     })
                     .collect()
             } else {
@@ -144,6 +152,11 @@ pub fn register_legacy_baseline(p: &mut Project, old: &Project) -> Result<()> {
 }
 pub fn capture(p: &Project, r: &Runtime) -> SaveCompatibility {
     SaveCompatibility {
+        variables: p
+            .variables
+            .iter()
+            .map(|(k, v)| (k.clone(), v.kind()))
+            .collect(),
         nodes: std::iter::once(&r.current)
             .chain(&r.history)
             .filter_map(|s| {
@@ -197,7 +210,7 @@ impl LoadReport {
 }
 pub fn load(p: &Project, save: SaveGame) -> Result<(Runtime, LoadReport)> {
     ensure!(save.project_id == p.id, "此存档属于其他作品");
-    ensure!(save.version == 1 || save.version == 2, "不支持的存档版本");
+    ensure!([1, 2, 3].contains(&save.version), "不支持的存档版本");
     ensure!(save.runtime.history.len() <= 500, "存档回退历史超出上限");
     let mut report = LoadReport {
         legacy: save.version == 1,
@@ -205,7 +218,7 @@ pub fn load(p: &Project, save: SaveGame) -> Result<(Runtime, LoadReport)> {
         ..Default::default()
     };
     let exact_legacy = save.version == 1 && save.fingerprint == legacy_fingerprint(p);
-    let signatures = if save.version == 2 {
+    let signatures = if save.version >= 2 {
         Some(
             save.compatibility
                 .as_ref()
@@ -230,10 +243,39 @@ pub fn load(p: &Project, save: SaveGame) -> Result<(Runtime, LoadReport)> {
                 .clone(),
         )
     };
+    let schema = save
+        .compatibility
+        .as_ref()
+        .map(|c| c.variables.clone())
+        .unwrap_or_default();
+    for (key, kind) in &schema {
+        ensure!(
+            p.variables.get(key).is_some_and(|v| v.kind() == *kind),
+            "变量 {key} 已删除或类型已改变"
+        );
+    }
     let mut runtime = save.runtime;
     let mut migrated = BTreeSet::new();
     let mut added = BTreeSet::new();
     for step in std::iter::once(&mut runtime.current).chain(runtime.history.iter_mut()) {
+        ensure!(
+            step.variables.keys().all(|k| schema.contains_key(k)),
+            "存档变量缺少类型声明"
+        );
+        ensure!(
+            step.variables.iter().all(|(k, v)| p
+                .variables
+                .get(k)
+                .is_some_and(|initial| initial.kind() == v.kind())),
+            "存档包含未知或类型不符的变量"
+        );
+        for (key, initial) in &p.variables {
+            if !step.variables.contains_key(key) {
+                ensure!(!schema.contains_key(key), "存档缺少已有变量 {key}");
+                step.variables.insert(key.clone(), initial.clone());
+                added.insert(key.clone());
+            }
+        }
         let old = step.node.clone();
         let id = resolve(p, &old)?;
         if let Some(signatures) = &signatures {

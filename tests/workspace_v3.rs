@@ -189,7 +189,7 @@ fn malformed_and_cross_project_saves_are_rejected() {
     bad.project_id = "other".into();
     assert!(load(&p, bad).is_err());
     bad = s.clone();
-    bad.version = 3;
+    bad.version = 99;
     assert!(load(&p, bad).is_err());
     bad = s.clone();
     bad.compatibility = None;

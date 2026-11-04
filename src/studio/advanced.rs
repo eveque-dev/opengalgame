@@ -1068,6 +1068,7 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
             self.advanced.sound.stop();
         }
         if let Some(r) = &self.runtime
+            && (self.player_only || !self.v4.debug.tainted)
             && self
                 .project
                 .node(&r.current.node)
@@ -1114,6 +1115,10 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
             {
                 self.advanced.focus = !self.advanced.focus;
                 self.section = Section::Script;
+            }
+            if ui.button("试玩调试台").clicked() {
+                self.v4.debug.open = true;
+                self.auto = false;
             }
             ui.menu_button("最近项目", |ui| {
                 let files = self.advanced.recent.clone();

@@ -16,6 +16,8 @@ pub struct Project {
     pub backgrounds: Vec<Background>,
     #[serde(default)]
     pub flags: BTreeMap<String, bool>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub variables: BTreeMap<String, crate::logic::Value>,
     pub nodes: crate::nodes::Nodes,
     #[serde(default)]
     pub audio: Vec<AudioAsset>,
@@ -216,6 +218,10 @@ pub struct Choice {
     pub condition: Option<FlagValue>,
     #[serde(default)]
     pub set_flag: Option<FlagValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<crate::logic::Condition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<crate::logic::Effect>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct FlagValue {
@@ -234,6 +240,14 @@ pub struct Issue {
     pub message: String,
 }
 impl Project {
+    pub fn uses_typed_logic(&self) -> bool {
+        !self.variables.is_empty()
+            || self.nodes.iter().any(|n| {
+                n.choices
+                    .iter()
+                    .any(|c| c.when.is_some() || !c.effects.is_empty())
+            })
+    }
     pub fn image_files(&self) -> Vec<&str> {
         self.backgrounds
             .iter()
@@ -347,7 +361,7 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
             message,
         })
     };
-    if p.format_version != 1 {
+    if ![1, 2].contains(&p.format_version) {
         push(Severity::Error, None, "不支持的项目格式版本".into());
     }
     if p.id.trim().is_empty() || p.title.trim().is_empty() {
@@ -355,6 +369,33 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
     }
     if p.nodes.is_empty() {
         push(Severity::Error, None, "至少需要一个剧情节点".into());
+    }
+    let has_logic = !p.variables.is_empty()
+        || p.nodes.iter().any(|n| {
+            n.choices
+                .iter()
+                .any(|c| c.when.is_some() || !c.effects.is_empty())
+        });
+    if has_logic && p.format_version < 2 {
+        push(
+            Severity::Error,
+            None,
+            "新增变量和复合条件需要项目格式 2，请用 0.4 保存".into(),
+        );
+    }
+    for (key, value) in &p.variables {
+        if key.trim().is_empty() || p.flags.contains_key(key) {
+            push(
+                Severity::Error,
+                None,
+                format!("变量标识为空或与旧布尔变量重复：{key}"),
+            );
+        }
+        if let crate::logic::Value::Text(v) = value
+            && v.len() > 65536
+        {
+            push(Severity::Error, None, format!("文本变量 {key} 超过 64 KiB"));
+        }
     }
     let mut ids = HashSet::new();
     for n in &p.nodes {
@@ -471,6 +512,16 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
             }
         }
         for c in &n.choices {
+            if let Some(condition) = &c.when
+                && let Err(e) = condition.validate(p)
+            {
+                push(Severity::Error, Some(&n.id), format!("条件错误：{e}"));
+            }
+            for effect in &c.effects {
+                if let Err(e) = effect.validate(p) {
+                    push(Severity::Error, Some(&n.id), format!("赋值错误：{e}"));
+                }
+            }
             if c.text.trim().is_empty() {
                 push(Severity::Error, Some(&n.id), "选项文字不能为空".into());
             }
@@ -550,11 +601,11 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
     {
         push(Severity::Error, None, "从开头无法到达任何结局".into());
     }
-    // Exact flag-state traversal catches conditional dead ends, unlike a plain graph walk.
+    // Bound state exploration using the exact runtime evaluator and transactional effects.
     if !issues.iter().any(|i| i.severity == Severity::Error) {
         let mut states = HashSet::new();
-        let mut pending = VecDeque::from([(p.start.clone(), p.flags.clone())]);
-        while let Some((id, flags)) = pending.pop_front() {
+        let mut pending = VecDeque::from([crate::runtime::Runtime::new(p).current]);
+        while let Some(step) = pending.pop_front() {
             if states.len() >= 8192 {
                 issues.push(Issue {
                     severity: Severity::Warning,
@@ -563,44 +614,49 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
                 });
                 break;
             }
-            if !states.insert((id.clone(), flags.clone())) {
+            if !states.insert((
+                step.node.clone(),
+                step.flags.clone(),
+                step.variables.clone(),
+            )) {
                 continue;
             }
-            let Some(n) = p.node(&id) else {
+            let Some(node) = p.node(&step.node) else {
                 continue;
             };
-            match n.kind {
-                NodeKind::Dialogue => {
-                    if let Some(next) = &n.next {
-                        pending.push_back((next.clone(), flags));
-                    }
+            let mut runtime = crate::runtime::Runtime {
+                current: step,
+                history: vec![],
+            };
+            let choices = if node.kind == NodeKind::Choice {
+                runtime
+                    .visible_choices(p)
+                    .into_iter()
+                    .map(Some)
+                    .collect::<Vec<_>>()
+            } else if node.kind == NodeKind::Dialogue {
+                vec![None]
+            } else {
+                vec![]
+            };
+            if node.kind == NodeKind::Choice && choices.is_empty() {
+                issues.push(Issue {
+                    severity: Severity::Error,
+                    node: Some(node.id.clone()),
+                    message: "存在到达此处后没有可选选项的变量状态".into(),
+                });
+            }
+            for choice in choices {
+                let before = runtime.clone();
+                match runtime.advance(p, choice) {
+                    Ok(()) => pending.push_back(runtime.current.clone()),
+                    Err(e) => issues.push(Issue {
+                        severity: Severity::Error,
+                        node: Some(node.id.clone()),
+                        message: format!("条件路径执行失败：{e}"),
+                    }),
                 }
-                NodeKind::Choice => {
-                    let visible: Vec<_> = n
-                        .choices
-                        .iter()
-                        .filter(|c| {
-                            c.condition
-                                .as_ref()
-                                .is_none_or(|f| flags.get(&f.flag) == Some(&f.value))
-                        })
-                        .collect();
-                    if visible.is_empty() {
-                        issues.push(Issue {
-                            severity: Severity::Error,
-                            node: Some(id),
-                            message: "存在到达此处后没有可选选项的变量状态".into(),
-                        });
-                    }
-                    for c in visible {
-                        let mut next_flags = flags.clone();
-                        if let Some(f) = &c.set_flag {
-                            next_flags.insert(f.flag.clone(), f.value);
-                        }
-                        pending.push_back((c.target.clone(), next_flags));
-                    }
-                }
-                NodeKind::Ending => {}
+                runtime = before;
             }
         }
     }

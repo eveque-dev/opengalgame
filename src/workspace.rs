@@ -143,7 +143,7 @@ impl Workspace {
         });
         let mut templates: Vec<PathBuf> = vec![];
         for base in [directory, PathBuf::from(env!("CARGO_MANIFEST_DIR"))] {
-            for name in ["first-light", "long-form"] {
+            for name in ["first-light", "long-form", "harbor-signals"] {
                 let path = base.join(format!("examples/{name}/project.json"));
                 if path.is_file() && !templates.iter().any(|p| path_key(p) == path_key(&path)) {
                     templates.push(path);
@@ -549,10 +549,10 @@ impl Workspace {
         egui::CentralPanel::default().frame(egui::Frame::new().fill(BASE).inner_margin(28)).show(ctx,|ui|{
             ui.horizontal(|ui|{ui.vertical(|ui|{ui.label(RichText::new("OpenGalgame").size(34.).strong());ui.label(RichText::new("项目中心 · 让每一个故事都有自己的工作台").size(16.).color(MUTED));});ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{if ui.add_sized([130.,44.],egui::Button::new("打开已有项目")).clicked(){open=Some(None);}
 if ui.add_sized([130.,44.],egui::Button::new("新建视觉小说").fill(Color32::from_rgb(79,66,126))).clicked(){self.new_open=true;self.fork_source=None;}});});
-            ui.add_space(18.);ui.horizontal(|ui|{ui.label(format!("{} 个作品",self.catalog.projects.len()));ui.separator();ui.label(format!("{} 个项目已打开",self.tabs.len()));ui.separator();let total:usize=self.tabs.iter().map(|t|t.project().tasks.len()).sum();let done:usize=self.tabs.iter().map(|t|t.project().tasks.iter().filter(|v|v.status==TaskStatus::Done).count()).sum();ui.label(format!("创作待办 {done} / {total}"));ui.separator();ui.colored_label(ACCENT,"0.3 · 多项目工作区");});
+            ui.add_space(18.);ui.horizontal(|ui|{ui.label(format!("{} 个作品",self.catalog.projects.len()));ui.separator();ui.label(format!("{} 个项目已打开",self.tabs.len()));ui.separator();let total:usize=self.tabs.iter().map(|t|t.project().tasks.len()).sum();let done:usize=self.tabs.iter().map(|t|t.project().tasks.iter().filter(|v|v.status==TaskStatus::Done).count()).sum();ui.label(format!("创作待办 {done} / {total}"));ui.separator();ui.colored_label(ACCENT,"0.4 · 剧本与调试");});
             ui.add_space(14.);
             if self.tabs.is_empty()&&!self.catalog.open_paths.is_empty()&& ui.button(format!("恢复上次工作区 · {} 个项目",self.catalog.open_paths.len())).clicked(){restore=true;}
-            ui.horizontal_wrapped(|ui|{ui.label("快速体验");for path in &self.templates {let long=path.to_string_lossy().contains("long-form");if ui.button(if long{"三封来信 · 42 节点"}else{"入门样例 · 8 节点"}).clicked(){sample=Some(path.clone());}}
+            ui.horizontal_wrapped(|ui|{ui.label("快速体验");for path in &self.templates {let name=path.to_string_lossy();if ui.button(if name.contains("harbor-signals"){"灯塔来信 · 变量与调试"}else if name.contains("long-form"){"三封来信 · 42 节点"}else{"入门样例 · 8 节点"}).clicked(){sample=Some(path.clone());}}
 if self.templates.is_empty(){ui.label(RichText::new("单文件版也可直接新建空白或分支项目，无需下载素材。").small().color(MUTED));}});
             ui.add_space(12.);ui.separator();ui.horizontal(|ui|{ui.label(RichText::new("我的作品").size(22.).strong());ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("搜索作品名称或目录").desired_width(260.));ui.checkbox(&mut self.archived,"查看归档");if ui.button("刷新信息").clicked(){refresh=true;}
 if ui.button("保存全部项目").clicked()&& self.save_all(){self.notice="所有未保存项目已写入磁盘。".into();}});

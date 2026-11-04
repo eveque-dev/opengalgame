@@ -8,6 +8,8 @@ use std::collections::BTreeMap;
 pub struct Step {
     pub node: String,
     pub flags: BTreeMap<String, bool>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub variables: BTreeMap<String, crate::logic::Value>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Runtime {
@@ -39,6 +41,7 @@ impl Runtime {
             current: Step {
                 node: p.start.clone(),
                 flags: p.flags.clone(),
+                variables: p.variables.clone(),
             },
             history: vec![],
         }
@@ -56,9 +59,7 @@ impl Runtime {
                     .iter()
                     .enumerate()
                     .filter(|(_, c)| {
-                        c.condition
-                            .as_ref()
-                            .is_none_or(|f| self.current.flags.get(&f.flag) == Some(&f.value))
+                        crate::logic::choice_available(c, &self.current).unwrap_or(false)
                     })
                     .map(|(i, _)| i)
                     .collect()
@@ -88,6 +89,9 @@ impl Runtime {
                     ensure!(p.flags.contains_key(&f.flag), "变量不存在");
                     next.flags.insert(f.flag.clone(), f.value);
                 }
+                for effect in &c.effects {
+                    effect.apply(p, &mut next)?;
+                }
             }
         }
         ensure!(p.node(&next.node).is_some(), "目标节点不存在");
@@ -111,7 +115,7 @@ impl Runtime {
     }
     pub fn save_with_fingerprint(&self, p: &Project, content_fingerprint: &str) -> SaveGame {
         SaveGame {
-            version: 2,
+            version: 3,
             project_id: p.id.clone(),
             fingerprint: content_fingerprint.to_owned(),
             runtime: self.clone(),

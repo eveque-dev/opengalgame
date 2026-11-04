@@ -26,6 +26,23 @@ fn run() -> Result<()> {
     let exe = std::env::current_exe()?;
     let directory = exe.parent().context("无法确定程序位置")?;
     let bundled = directory.join("game.json");
+    if args.first().map(String::as_str) == Some("--replay") {
+        let path = PathBuf::from(
+            args.get(1)
+                .context("--replay 需要 project.json route.json")?,
+        );
+        let route_path = PathBuf::from(args.get(2).context("--replay 需要路线 JSON")?);
+        ensure!(
+            std::fs::metadata(&route_path)?.len() <= 20 * 1024 * 1024,
+            "路线文件超过 20 MB"
+        );
+        let p = read_project(&path)?;
+        let route: opengalgame::debugger::Route =
+            serde_json::from_slice(&std::fs::read(route_path)?)?;
+        route.replay(&p)?;
+        println!("PASS: route replay");
+        return Ok(());
+    }
     if args.first().map(String::as_str) == Some("--validate") {
         let path = PathBuf::from(
             args.get(1)
