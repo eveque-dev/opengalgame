@@ -62,7 +62,7 @@ fn hidden_choice_cannot_be_selected_even_through_api() {
     assert_eq!(r, before);
 }
 #[test]
-fn saves_round_trip_and_reject_stale_or_forged_states() {
+fn saves_round_trip_allow_text_updates_and_reject_forged_states() {
     let p = demo();
     let mut r = Runtime::new(&p);
     r.advance(&p, None).unwrap();
@@ -74,7 +74,7 @@ fn saves_round_trip_and_reject_stale_or_forged_states() {
     );
     let mut changed = p.clone();
     changed.nodes[0].text.push('!');
-    assert!(Runtime::load(&changed, save.clone()).is_err());
+    assert_eq!(Runtime::load(&changed, save.clone()).unwrap(), r);
     let mut bad = save.clone();
     bad.runtime.current.node = "missing".into();
     assert!(Runtime::load(&p, bad).is_err());

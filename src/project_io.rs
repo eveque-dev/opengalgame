@@ -20,25 +20,40 @@ pub fn read_project(file: &Path) -> Result<Project> {
         "项目文件超过 20 MB"
     );
     let text = fs::read_to_string(file).context("无法读取项目，请检查路径和文件编码")?;
-    let p: Project =
+    let mut p: Project =
         serde_json::from_str(text.trim_start_matches('\u{feff}')).context("JSON 格式错误")?;
     ensure!(p.format_version == 1, "项目格式版本不兼容");
+    let value: serde_json::Value = serde_json::from_str(text.trim_start_matches('\u{feff}'))?;
+    if value.get("save_compatibility").is_none() {
+        let old = p.clone();
+        crate::compatibility::register_legacy_baseline(&mut p, &old)?;
+    }
     Ok(p)
 }
 pub fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<()> {
+    write_atomic(path, &serde_json::to_vec_pretty(value)?)
+}
+fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let temp = path.with_extension(format!("{}.tmp", stamp()));
-    fs::write(&temp, serde_json::to_vec_pretty(value)?)?;
+    static NEXT_WRITE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let serial = NEXT_WRITE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let temp = path.with_extension(format!("{}.{}.{serial}.tmp", std::process::id(), stamp()));
+    fs::write(&temp, bytes)?;
     fs::rename(&temp, path).with_context(|| format!("无法保存 {}", path.display()))?;
     Ok(())
 }
 pub fn save_project(file: &Path, project: &Project) -> Result<()> {
+    let bytes = serde_json::to_vec_pretty(project)?;
+    ensure!(
+        bytes.len() <= 20 * 1024 * 1024,
+        "项目文件超过 20 MB；请减少重复版本基线或拆分工程后再保存"
+    );
     if file.is_file() {
         fs::copy(file, file.with_extension("json.bak"))?;
     }
-    write_json(file, project)
+    write_atomic(file, &bytes)
 }
 pub fn import_asset(base: &Path, source: &Path) -> Result<String> {
     let ext = source

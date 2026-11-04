@@ -1,6 +1,8 @@
 use eframe::egui::{self, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 use opengalgame::{model::*, project_io::*, runtime::*};
 mod advanced;
+mod checkpoints;
+mod images;
 use advanced::Advanced;
 use std::{
     collections::HashMap,
@@ -39,7 +41,35 @@ enum Action {
     Back,
     Restart,
 }
+pub(crate) enum WorkspaceRequest {
+    Open(PathBuf),
+    New,
+    Export {
+        project: Box<Project>,
+        base: PathBuf,
+        destination: PathBuf,
+    },
+}
 pub struct Studio {
+    pub(crate) managed: bool,
+    pub(crate) external_modal: bool,
+    alias_old: String,
+    alias_new: String,
+    pub(crate) workspace_request: Option<WorkspaceRequest>,
+    pub(crate) revision: u64,
+    pub(crate) saved_generation: u64,
+    dirty_flag: bool,
+    images: images::Images,
+    checkpoints: checkpoints::Checkpoints,
+    filter_revision: u64,
+    filter_query: String,
+    filter_chapter: String,
+    filter_rows: Vec<usize>,
+    cycle_revision: u64,
+    cycle_nodes: std::sync::Arc<std::collections::BTreeSet<String>>,
+    play_fingerprint: String,
+    target_revision: u64,
+    target_cache: std::sync::Arc<Vec<(String, String)>>,
     project: Project,
     path: PathBuf,
     saved: Project,
@@ -130,6 +160,9 @@ impl Studio {
         player: bool,
     ) -> Self {
         configure(&cc.egui_ctx);
+        Self::create(project, path, player)
+    }
+    pub(crate) fn create(project: Project, path: PathBuf, player: bool) -> Self {
         let runtime = None;
         let advanced = Advanced::new(&project, &path, player);
         let node_id = project
@@ -138,6 +171,25 @@ impl Studio {
             .map(|n| n.id.clone())
             .unwrap_or_default();
         Self {
+            managed: false,
+            external_modal: false,
+            alias_old: String::new(),
+            alias_new: String::new(),
+            workspace_request: None,
+            revision: 0,
+            saved_generation: 0,
+            dirty_flag: false,
+            images: Default::default(),
+            checkpoints: Default::default(),
+            filter_revision: u64::MAX,
+            filter_query: String::new(),
+            filter_chapter: String::new(),
+            filter_rows: vec![],
+            cycle_revision: u64::MAX,
+            cycle_nodes: Default::default(),
+            play_fingerprint: String::new(),
+            target_revision: u64::MAX,
+            target_cache: Default::default(),
             saved: project.clone(),
             project,
             path,
@@ -153,7 +205,7 @@ impl Studio {
             status: if player {
                 "点击继续，或按空格开始阅读"
             } else {
-                "已打开示例。修改右侧对白，立刻查看舞台效果。"
+                "项目已打开。修改右侧对白，立刻查看舞台效果。"
             }
             .into(),
             status_error: false,
@@ -177,8 +229,56 @@ impl Studio {
             advanced,
         }
     }
-    fn dirty(&self) -> bool {
-        self.project != self.saved
+    pub(crate) fn dirty(&self) -> bool {
+        self.dirty_flag
+    }
+    pub(crate) fn project(&self) -> &Project {
+        &self.project
+    }
+    pub(crate) fn is_playing(&self) -> bool {
+        self.runtime.is_some()
+    }
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+    pub(crate) fn pause(&mut self) {
+        self.auto = false;
+        self.advanced.sound.stop();
+        self.images.clear();
+        self.textures.clear();
+    }
+    pub(crate) fn discard_recovery(&self) {
+        let _ = self.checkpoints.dismiss(&self.path, &self.saved);
+    }
+    pub(crate) fn edit_external(&mut self, edit: impl FnOnce(&mut Project)) {
+        let before = self.project.clone();
+        edit(&mut self.project);
+        if before != self.project {
+            self.undo.push(before);
+            if self.undo.len() > 100 {
+                self.undo.remove(0);
+            }
+            self.redo.clear();
+            self.revision += 1;
+            self.dirty_flag = self.project != self.saved;
+            if !self.dirty_flag {
+                let _ = self.checkpoints.dismiss(&self.path, &self.saved);
+            }
+            self.issues.clear();
+        }
+    }
+    fn node_targets(&mut self) -> std::sync::Arc<Vec<(String, String)>> {
+        if self.target_revision != self.revision {
+            self.target_cache = std::sync::Arc::new(
+                self.project
+                    .nodes
+                    .iter()
+                    .map(|n| (n.id.clone(), n.title.clone()))
+                    .collect(),
+            );
+            self.target_revision = self.revision;
+        }
+        self.target_cache.clone()
     }
     fn base(&self) -> &Path {
         self.path.parent().unwrap_or_else(|| Path::new("."))
@@ -204,11 +304,13 @@ impl Studio {
             .map(|n| n.id.clone())
             .unwrap_or_default();
     }
-    fn save(&mut self) -> bool {
+    pub(crate) fn save(&mut self) -> bool {
         match save_project(&self.path, &self.project) {
             Ok(()) => {
                 self.saved = self.project.clone();
-                let _ = opengalgame::recovery::dismiss(&self.path, &self.saved);
+                let _ = self.checkpoints.dismiss(&self.path, &self.saved);
+                self.dirty_flag = false;
+                self.saved_generation += 1;
                 self.message(Ok(format!("已保存到 {}", self.path.display())));
                 true
             }
@@ -252,6 +354,7 @@ impl Studio {
         } else {
             Runtime::new(&self.project)
         });
+        self.play_fingerprint = fingerprint(&self.project);
         self.advanced.scene_key.clear();
         self.advanced.bulk_open = false;
         self.advanced.replace_open = false;
@@ -306,7 +409,7 @@ impl Studio {
         if let Some(r) = &self.runtime {
             let result = write_json(
                 &save_directory(&self.project.id).join(format!("{slot}.json")),
-                &r.save(&self.project),
+                &r.save_with_fingerprint(&self.project, &self.play_fingerprint),
             );
             if result.is_ok() && slot != "auto" {
                 self.advanced.capture = Some((slot.to_owned(), 2));
@@ -322,22 +425,31 @@ impl Studio {
             let bytes =
                 std::fs::read(save_directory(&self.project.id).join(format!("{slot}.json")))?;
             let save: SaveGame = serde_json::from_slice(&bytes)?;
-            Runtime::load(&self.project, save)
+            opengalgame::compatibility::load(&self.project, save)
         })();
         match result {
-            Ok(r) => {
+            Ok((r, report)) => {
+                self.play_fingerprint = fingerprint(&self.project);
                 self.runtime = Some(r);
                 self.advanced.title_screen = false;
                 self.advanced.scene_key.clear();
                 self.auto = false;
                 self.auto_started = Instant::now();
                 self.saves_open = false;
-                self.message(Ok("已读取进度"));
+                self.message(Ok(report.description()));
             }
             Err(e) => self.message(Err::<String, _>(e)),
         }
     }
     fn request(&mut self, action: Pending) {
+        if self.managed {
+            match action {
+                Pending::Open(path) => self.workspace_request = Some(WorkspaceRequest::Open(path)),
+                Pending::New => self.workspace_request = Some(WorkspaceRequest::New),
+                Pending::Exit => {}
+            };
+            return;
+        }
         if self.dirty() {
             self.pending = Some(action);
         } else {
@@ -358,6 +470,7 @@ impl Studio {
                     self.runtime = None;
                     self.issues.clear();
                     self.textures.clear();
+                    self.images.clear();
                     self.undo.clear();
                     self.redo.clear();
                     self.skip_history = true;
@@ -382,10 +495,13 @@ impl Studio {
                         flags: Default::default(),
                         audio: vec![],
                         presentation: Default::default(),
+                        tasks: vec![],
+                        save_compatibility: Default::default(),
                         nodes: vec![Node {
                             text: "你的第一个故事，从这里开始。".into(),
                             ..Node::new("opening".into(), NodeKind::Ending, 0)
-                        }],
+                        }]
+                        .into(),
                     };
                     let path = base.join("project.json");
                     match save_project(&path, &project) {
@@ -399,6 +515,7 @@ impl Studio {
                             self.section = Section::Script;
                             self.runtime = None;
                             self.textures.clear();
+                            self.images.clear();
                             self.undo.clear();
                             self.redo.clear();
                             self.issues.clear();
@@ -432,7 +549,7 @@ impl Studio {
         }
     }
     fn toolbar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("toolbar")
+        egui::TopBottomPanel::top(egui::Id::new(("toolbar", &self.path)))
             .frame(
                 egui::Frame::new()
                     .fill(BASE)
@@ -468,13 +585,22 @@ impl Studio {
                             .on_hover_text("导出 Windows x64 游戏目录，内含 Game.exe 和素材")
                             .clicked()
                         {
-                            if self.check() {
+                            if self.managed || self.check() {
                                 if let Some(folder) = rfd::FileDialog::new()
                                     .set_title("选择导出游戏的父目录")
                                     .pick_folder()
                                 {
                                     let destination =
                                         folder.join(format!("opengalgame-game-{}", stamp()));
+                                    if self.managed {
+                                        self.workspace_request = Some(WorkspaceRequest::Export {
+                                            project: Box::new(self.project.clone()),
+                                            base: self.base().to_owned(),
+                                            destination,
+                                        });
+                                        return;
+                                    }
+
                                     let result = std::env::current_exe()
                                         .map_err(anyhow::Error::from)
                                         .and_then(|exe| {
@@ -601,7 +727,7 @@ impl Studio {
                 });
                 self.advanced_toolbar(ui);
             });
-        egui::TopBottomPanel::bottom("status")
+        egui::TopBottomPanel::bottom(egui::Id::new(("status", &self.path)))
             .frame(
                 egui::Frame::new()
                     .fill(BASE)
@@ -643,7 +769,7 @@ impl Studio {
             });
     }
     fn sidebar(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("scenes")
+        egui::SidePanel::left(egui::Id::new(("scenes", &self.path)))
             .resizable(true)
             .default_width(232.)
             .min_width(205.)
@@ -679,29 +805,39 @@ impl Studio {
                 );
                 ui.add_space(8.);
                 let current = self.runtime.as_ref().map(|r| r.current.node.clone());
+                if self.filter_revision != self.revision
+                    || self.filter_query != self.search
+                    || self.filter_chapter != self.advanced.chapter_filter
+                {
+                    self.filter_rows = self
+                        .project
+                        .nodes
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, n)| {
+                            opengalgame::authoring::matches(n, &self.search)
+                                && (self.advanced.chapter_filter.is_empty()
+                                    || n.chapter == self.advanced.chapter_filter
+                                    || (n.chapter.is_empty()
+                                        && self.advanced.chapter_filter == "未分章"))
+                        })
+                        .map(|(i, _)| i)
+                        .collect();
+                    self.filter_revision = self.revision;
+                    self.filter_query = self.search.clone();
+                    self.filter_chapter = self.advanced.chapter_filter.clone();
+                }
+                if self.filter_rows.is_empty() {
+                    ui.label(RichText::new("没有匹配的节点").color(MUTED));
+                }
                 egui::ScrollArea::vertical()
                     .id_salt("node_list")
                     .max_height((ui.available_height() - 106.).max(100.))
                     .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        let rows: Vec<_> = self
-                            .project
-                            .nodes
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, n)| {
-                                opengalgame::authoring::matches(n, &self.search)
-                                    && (self.advanced.chapter_filter.is_empty()
-                                        || n.chapter == self.advanced.chapter_filter
-                                        || (n.chapter.is_empty()
-                                            && self.advanced.chapter_filter == "未分章"))
-                            })
-                            .map(|(i, n)| (i, n.clone()))
-                            .collect();
-                        if rows.is_empty() {
-                            ui.label(RichText::new("没有匹配的节点").color(MUTED));
-                        }
-                        for (i, node) in rows {
+                    .show_rows(ui, 62., self.filter_rows.len(), |ui, range| {
+                        for row in range {
+                            let i = self.filter_rows[row];
+                            let node = self.project.nodes[i].clone();
                             let selected = self.selected == i;
                             let color = kind_color(node.kind);
                             let mut job = egui::text::LayoutJob::default();
@@ -831,7 +967,7 @@ impl Studio {
             });
     }
     fn inspector(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::right("properties").resizable(true).default_width(332.).min_width(285.).max_width(500.).frame(egui::Frame::new().fill(PANEL).inner_margin(18)).show(ctx,|ui| {
+        egui::SidePanel::right(egui::Id::new(("properties",self.path.clone()))).resizable(true).default_width(332.).min_width(285.).max_width(500.).frame(egui::Frame::new().fill(PANEL).inner_margin(18)).show(ctx,|ui| {
             ui.horizontal(|ui|{ui.label(RichText::new("编辑场景").size(18.).strong());if let Some(n)=self.project.nodes.get(self.selected){badge(ui,n.kind.label(),kind_color(n.kind));}});
             ui.add_space(8.);
             if self.project.nodes.is_empty(){ui.label("在左侧添加第一个节点。");return;}
@@ -841,7 +977,7 @@ impl Studio {
             let inline_errors:Vec<_>=self.issues.iter().filter(|i|i.node.as_deref()==Some(&node_id)&&i.severity==Severity::Error).map(|i|i.message.clone()).collect();
             for message in inline_errors{ui.colored_label(BAD,message);}
             egui::ScrollArea::vertical().id_salt(("node_fields",&node_id)).auto_shrink([false,false]).show(ui,|ui|{ui.add_enabled_ui(self.runtime.is_none(),|ui| {
-                let targets:Vec<_>=self.project.nodes.iter().map(|n|(n.id.clone(),n.title.clone())).collect();
+                let targets=self.node_targets();
                 let chars:Vec<_>=self.project.characters.iter().map(|c|(c.id.clone(),c.name.clone())).collect();
                 let bgs:Vec<_>=self.project.backgrounds.iter().map(|b|(b.id.clone(),b.name.clone())).collect();
                 let flags:Vec<_>=self.project.flags.keys().cloned().collect();
@@ -896,25 +1032,12 @@ impl Studio {
         });
     }
     fn texture(&mut self, ctx: &egui::Context, file: &str) -> Option<egui::TextureHandle> {
-        let key = format!("{}|{file}", self.base().display());
-        if !self.textures.contains_key(&key) {
-            let result = (|| {
-                let path = safe_asset(self.base(), file).map_err(|e| e.to_string())?;
-                let img = image::open(path).map_err(|e| e.to_string())?;
-                let img = img.thumbnail(4096, 4096).into_rgba8();
-                let size = [img.width() as usize, img.height() as usize];
-                Ok(ctx.load_texture(
-                    &key,
-                    egui::ColorImage::from_rgba_unmultiplied(size, img.as_raw()),
-                    egui::TextureOptions::LINEAR,
-                ))
-            })();
-            self.textures.insert(key.clone(), result);
-        }
-        self.textures
-            .get(&key)
-            .and_then(|r| r.as_ref().ok())
-            .cloned()
+        let base = self.base().to_owned();
+        self.images.get(ctx, &base, file, 2048)
+    }
+    fn thumbnail(&mut self, ctx: &egui::Context, file: &str) -> Option<egui::TextureHandle> {
+        let base = self.base().to_owned();
+        self.images.get(ctx, &base, file, 512)
     }
 
     fn scene(&mut self, ui: &mut egui::Ui, size: Vec2, playing: bool) -> Option<Action> {
@@ -1114,8 +1237,13 @@ impl Studio {
                     * zoom;
                 let (canvas, _) = ui.allocate_exact_size(Vec2::new(max_x, max_y), Sense::hover());
                 let painter = ui.painter_at(canvas);
-                for y in (0..max_y as usize).step_by(24) {
-                    for x in (0..max_x as usize).step_by(24) {
+                let clip = ui.clip_rect().intersect(canvas);
+                let min_x = ((clip.left() - canvas.left()).max(0.) as usize / 24) * 24;
+                let min_y = ((clip.top() - canvas.top()).max(0.) as usize / 24) * 24;
+                let end_x = (clip.right() - canvas.left()).max(0.) as usize;
+                let end_y = (clip.bottom() - canvas.top()).max(0.) as usize;
+                for y in (min_y..end_y).step_by(24) {
+                    for x in (min_x..end_x).step_by(24) {
                         painter.circle_filled(
                             canvas.min + Vec2::new(x as f32, y as f32),
                             1.,
@@ -1124,15 +1252,38 @@ impl Studio {
                     }
                 }
                 let nodes = self.project.nodes.clone();
-                let cycles = opengalgame::authoring::cycle_nodes(&self.project);
+                if self.cycle_revision != self.revision {
+                    self.cycle_nodes =
+                        std::sync::Arc::new(opengalgame::authoring::cycle_nodes(&self.project));
+                    self.cycle_revision = self.revision;
+                }
+                let cycles = self.cycle_nodes.clone();
                 let mut route = Vec::new();
                 if let Some(r) = &self.runtime {
                     route.extend(r.history.iter().map(|s| s.node.as_str()));
                     route.push(&r.current.node);
                 }
+                let route_edges: std::collections::HashSet<_> =
+                    route.windows(2).map(|pair| (pair[0], pair[1])).collect();
+                let clicked = ui.input(|i| {
+                    i.pointer
+                        .primary_clicked()
+                        .then(|| i.pointer.interact_pos())
+                        .flatten()
+                });
+                let clicked_on_node = clicked.is_some_and(|pos| {
+                    nodes.iter().any(|n| {
+                        Rect::from_min_size(
+                            canvas.min + Vec2::new(n.position[0], n.position[1]) * zoom,
+                            Vec2::new(222., (56. + n.choices.len() as f32 * 24.).max(105.)) * zoom,
+                        )
+                        .expand(6.)
+                        .contains(pos)
+                    })
+                });
                 for n in &nodes {
                     for (index, target) in n.targets().iter().enumerate() {
-                        if let Some(t) = nodes.iter().find(|t| &t.id == target) {
+                        if let Some(t) = self.project.node(target) {
                             let a = canvas.min
                                 + Vec2::new(
                                     n.position[0] + 222.,
@@ -1140,19 +1291,18 @@ impl Studio {
                                 ) * zoom;
                             let b =
                                 canvas.min + Vec2::new(t.position[0], t.position[1] + 48.) * zoom;
-                            let color =
-                                if route.windows(2).any(|pair| pair == [n.id.as_str(), target]) {
-                                    GOOD
-                                } else if self
-                                    .project
-                                    .nodes
-                                    .get(self.selected)
-                                    .is_some_and(|s| s.id == n.id)
-                                {
-                                    ACCENT
-                                } else {
-                                    Color32::from_rgb(112, 129, 155)
-                                };
+                            let color = if route_edges.contains(&(n.id.as_str(), *target)) {
+                                GOOD
+                            } else if self
+                                .project
+                                .nodes
+                                .get(self.selected)
+                                .is_some_and(|s| s.id == n.id)
+                            {
+                                ACCENT
+                            } else {
+                                Color32::from_rgb(112, 129, 155)
+                            };
                             let points = if b.x > a.x {
                                 let mid = (a.x + b.x) * 0.5;
                                 vec![a, Pos2::new(mid, a.y), Pos2::new(mid, b.y), b]
@@ -1167,22 +1317,7 @@ impl Studio {
                                     b,
                                 ]
                             };
-                            if let Some(pos) = ui.input(|i| i.pointer.interact_pos())
-                                && ui.input(|i| i.pointer.primary_clicked())
-                            {
-                                let on_node = nodes.iter().any(|other| {
-                                    Rect::from_min_size(
-                                        canvas.min
-                                            + Vec2::new(other.position[0], other.position[1])
-                                                * zoom,
-                                        Vec2::new(
-                                            222.,
-                                            (56. + other.choices.len() as f32 * 24.).max(105.),
-                                        ) * zoom,
-                                    )
-                                    .expand(6.)
-                                    .contains(pos)
-                                });
+                            if let Some(pos) = clicked {
                                 let close = points.windows(2).any(|segment| {
                                     let delta = segment[1] - segment[0];
                                     let t = ((pos - segment[0]).dot(delta)
@@ -1190,7 +1325,7 @@ impl Studio {
                                     .clamp(0., 1.);
                                     pos.distance(segment[0] + delta * t) < 7.
                                 });
-                                if close && !on_node && self.runtime.is_none() {
+                                if close && !clicked_on_node && self.runtime.is_none() {
                                     self.advanced.edge = Some(opengalgame::authoring::Port {
                                         node: n.id.clone(),
                                         choice: (n.kind == NodeKind::Choice).then_some(index),
@@ -1227,6 +1362,9 @@ impl Studio {
                         canvas.min + Vec2::new(node.position[0], node.position[1]) * zoom,
                         Vec2::new(222., (56. + node.choices.len() as f32 * 24.).max(105.)) * zoom,
                     );
+                    if !rect.expand(16.).intersects(ui.clip_rect()) {
+                        continue;
+                    }
                     let selected = i == self.selected;
                     let active = self
                         .runtime
@@ -1577,12 +1715,7 @@ impl Studio {
         ui.add(egui::TextEdit::singleline(&mut self.project.title).desired_width(400.));
         ui.label("作者署名");
         ui.add(egui::TextEdit::singleline(&mut self.project.author).desired_width(400.));
-        let targets = self
-            .project
-            .nodes
-            .iter()
-            .map(|n| (n.id.clone(), n.title.clone()))
-            .collect::<Vec<_>>();
+        let targets = self.node_targets();
         ui.label("起始节点");
         target_combo(ui, "project_start", &mut self.project.start, &targets);
         ui.separator();
@@ -1596,6 +1729,13 @@ impl Studio {
             let result = clone_project(&self.project, self.base(), &path);
             match result {
                 Ok(p) => {
+                    if self.managed {
+                        self.workspace_request = Some(WorkspaceRequest::Open(path));
+                        self.message(Ok(
+                            "已另存版本；保留作品标识，可沿用玩家存档。新作品请用「独立副本」。",
+                        ));
+                        return;
+                    }
                     self.path = path;
                     self.project = p.clone();
                     self.saved = p;
@@ -1606,7 +1746,18 @@ impl Studio {
             }
         }
         ui.separator();
-        ui.label(RichText::new("OpenGalgame 0.2 · Rust 原生视觉小说引擎").color(ACCENT));
+        ui.label(RichText::new("OpenGalgame 0.3 · Rust 原生视觉小说引擎").color(ACCENT));
+        ui.collapsing("存档兼容与节点迁移",|ui|{
+            ui.label("调整对白、图片、布局和新增未经过的章节可沿用 0.3 存档。改动已经过节点的类型、跳转、条件或变量时会阻止读取，并说明原因。");
+            ui.label("使用节点「更新标识」会自动记录迁移。手动填写可用于删除旧节点后指定替代节点；迁移仍会检查控制流程。");
+            ui.horizontal(|ui|{ui.label("旧节点");ui.text_edit_singleline(&mut self.alias_old);});
+            ui.horizontal(|ui|{ui.label("新节点");ui.text_edit_singleline(&mut self.alias_new);});
+            if ui.button("添加迁移规则").clicked(){let old=self.alias_old.trim().to_owned();let new=self.alias_new.trim().to_owned();let mut policy=self.project.save_compatibility.clone();policy.node_aliases.insert(old.clone(),new);let mut draft=self.project.clone();draft.save_compatibility=policy;if old.is_empty()||draft.node(&old).is_some(){self.message(Err::<String,_>(anyhow::anyhow!("旧标识不能为空，且不能覆盖当前仍存在的节点")));}else{match opengalgame::compatibility::resolve(&draft,&old){Ok(_)=>{self.project.save_compatibility=draft.save_compatibility;self.alias_old.clear();self.alias_new.clear();},Err(e)=>self.message(Err::<String,_>(e))}}}
+            let aliases=self.project.save_compatibility.node_aliases.clone();for(old,new)in aliases{ui.horizontal(|ui|{ui.label(format!("{old} → {new}"));if ui.small_button("移除规则").clicked(){self.project.save_compatibility.node_aliases.remove(&old);}});}
+            ui.separator();ui.label(format!("已保存 {} 个 0.2 版本基线",self.project.save_compatibility.legacy_baselines.len()));
+            ui.label("首次打开 0.2 项目会自动保留基线。其他旧版本请导入当时的原始 project.json；系统只读取该文件，不替换当前内容。");
+            if ui.button("导入旧项目兼容基线…").clicked()&&let Some(path)=rfd::FileDialog::new().add_filter("旧项目 JSON",&["json"]).pick_file(){let result=read_project(&path).and_then(|old|opengalgame::compatibility::register_legacy_baseline(&mut self.project,&old)).map(|_|"旧版基线已加入，保存项目后生效");self.message(result);}
+        });
         self.presentation_options(ui);
         ui.label("项目保存为可阅读的 JSON；图像与剧情分离。导出目录包含 Game.exe、game.json 和 assets，可直接复制分享。");
     }
@@ -1674,7 +1825,7 @@ impl Studio {
                         if ui.button("放弃改动并继续").clicked()
                             && let Some(p) = self.pending.take()
                         {
-                            let _ = opengalgame::recovery::dismiss(&self.path, &self.saved);
+                            let _ = self.checkpoints.dismiss(&self.path, &self.saved);
                             if matches!(p, Pending::Exit) {
                                 self.saved = self.project.clone();
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -1739,19 +1890,38 @@ impl Studio {
 }
 impl eframe::App for Studio {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let before = self.project.clone();
+        let possible_edit = !self.player_only
+            && self.runtime.is_none()
+            && ctx.input(|i| {
+                i.pointer.any_down()
+                    || i.events.iter().any(|e| {
+                        !matches!(
+                            e,
+                            egui::Event::PointerMoved(_)
+                                | egui::Event::PointerGone
+                                | egui::Event::MouseMoved(_)
+                        )
+                    })
+            });
+        let before = possible_edit.then(|| self.project.clone());
+        self.images.poll(ctx);
         self.advanced_tick(ctx);
         self.skip_history = false;
-        if ctx.input(|i| i.viewport().close_requested()) && !self.player_only && self.dirty() {
+        if ctx.input(|i| i.viewport().close_requested())
+            && !self.player_only
+            && !self.managed
+            && self.dirty()
+        {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.pending = Some(Pending::Exit);
         }
         if !self.player_only
+            && !self.external_modal
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::S))
         {
             self.save();
         }
-        if !self.player_only && self.runtime.is_none() {
+        if !self.player_only && !self.external_modal && self.runtime.is_none() {
             if ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Z)) {
                 self.history_edit(false);
             }
@@ -1762,7 +1932,8 @@ impl eframe::App for Studio {
                 self.begin(false);
             }
         }
-        let modal = self.saves_open
+        let modal = self.external_modal
+            || self.saves_open
             || self.log_open
             || self.pending.is_some()
             || self.delete_node
@@ -1908,16 +2079,25 @@ impl eframe::App for Studio {
         }
         self.dialogs(ctx);
         self.advanced_dialogs(ctx);
-        if self.project != before && !self.skip_history {
-            self.issues.clear();
-            if self.last_edit.elapsed() > Duration::from_millis(650) || self.undo.is_empty() {
-                self.undo.push(before);
-                if self.undo.len() > 100 {
-                    self.undo.remove(0);
-                }
+        if let Some(before) = before
+            && self.project != before
+        {
+            self.revision += 1;
+            self.dirty_flag = self.project != self.saved;
+            if !self.dirty_flag {
+                let _ = self.checkpoints.dismiss(&self.path, &self.saved);
             }
-            self.redo.clear();
-            self.last_edit = Instant::now();
+            if !self.skip_history {
+                self.issues.clear();
+                if self.last_edit.elapsed() > Duration::from_millis(650) || self.undo.is_empty() {
+                    self.undo.push(before);
+                    if self.undo.len() > 100 {
+                        self.undo.remove(0);
+                    }
+                }
+                self.redo.clear();
+                self.last_edit = Instant::now();
+            }
         }
     }
 }
@@ -1958,9 +2138,31 @@ fn target_combo(ui: &mut egui::Ui, id: &str, value: &mut String, items: &[(Strin
         .selected_text(selected)
         .width(235.)
         .show_ui(ui, |ui| {
-            for (key, name) in items {
-                ui.selectable_value(value, key.clone(), name);
-            }
+            let search_id = ui.id().with("target_search");
+            let mut query = ui.data_mut(|d| d.get_temp::<String>(search_id).unwrap_or_default());
+            ui.add(
+                egui::TextEdit::singleline(&mut query)
+                    .hint_text("搜索节点名称或标识")
+                    .desired_width(235.),
+            );
+            let filtered: Vec<_> = items
+                .iter()
+                .filter(|(key, name)| {
+                    query.is_empty() || key.contains(&query) || name.contains(&query)
+                })
+                .collect();
+            ui.data_mut(|d| d.insert_temp(search_id, query));
+            egui::ScrollArea::vertical().max_height(250.).show_rows(
+                ui,
+                34.,
+                filtered.len(),
+                |ui, range| {
+                    for i in range {
+                        let (key, name) = filtered[i];
+                        ui.selectable_value(value, key.clone(), name);
+                    }
+                },
+            );
         });
 }
 fn flag_control(ui: &mut egui::Ui, label: &str, value: &mut Option<FlagValue>, flags: &[String]) {

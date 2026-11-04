@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/eveque-dev/opengalgame/releases/download/v0.2.0/opengalgame-v0.2.0-windows-x64.zip"><strong>下载编辑器</strong></a> ·
+  <a href="https://github.com/eveque-dev/opengalgame/releases/download/v0.3.0/opengalgame-v0.3.0-windows-x64.zip"><strong>下载编辑器</strong></a> ·
   <a href="docs/guide.zh-CN.md">使用指南</a> ·
   <a href="examples/long-form/project.json">查看示例剧本</a> ·
   <a href="docs/architecture.md">引擎架构</a>
@@ -23,7 +23,13 @@
 
 ---
 
-<img src="docs/media/editor.png" alt="OpenGalgame 编辑器：剧情目录、实时舞台与场景属性" width="100%">
+<img src="docs/media/project-center.png" alt="OpenGalgame 0.3 项目中心：多部作品、项目标签与创作进度" width="100%">
+
+### 每个故事，都有自己的工作台
+
+同时打开多部作品，切换时保留各自的未保存内容、撤销记录与试玩进度。项目中心整理作品阶段、置顶与归档；跨项目待办记录下一步要完成的对白、素材和分支。导出进入后台队列，创作可以继续。
+
+<img src="docs/media/tasks.png" alt="跨项目创作待办：按作品筛选，跟踪待处理、进行中和已完成任务" width="100%">
 
 ### 把创作留在画面里
 
@@ -53,10 +59,10 @@ OpenGalgame 把人物、背景、对白和选择放在同一个工作区。你�
 
 | 文件 | 用途 |
 | :--- | :--- |
-| `opengalgame-v0.2.0-windows-x64.zip` | **推荐。** 便携编辑器，附完整样例和许可文件；解压后双击 `opengalgame.exe` |
-| `three-letters-v0.2.0-windows-x64.zip` | 已导出的三结局游戏，解压后双击 `Game.exe` 体验 |
-| `opengalgame-v0.2.0-source.zip` | 源码、锁定依赖、样例、测试与打包工具 |
-| `opengalgame.exe` | 编辑器单文件，需现有项目，以 `--editor project.json` 启动；首次体验请下载完整便携包 |
+| `opengalgame-v0.3.0-windows-x64.zip` | **推荐。** 便携编辑器，附完整样例和许可文件；解压后双击 `opengalgame.exe` |
+| `three-letters-v0.3.0-windows-x64.zip` | 已导出的三结局游戏，解压后双击 `Game.exe` 体验 |
+| `opengalgame-v0.3.0-source.zip` | 源码、锁定依赖、样例、测试与打包工具 |
+| `opengalgame.exe` | 单文件编辑器，双击进入项目中心，可直接新建空白故事或双结局模板 |
 
 玩家和便携版使用者无需安装 Rust、Python 或 WebView。目标平台为 **Windows 10/11 x64**，需要正常的 OpenGL 3.3 图形驱动。
 
@@ -108,13 +114,21 @@ python tools/package_windows.py
 
 ### 用完整故事验证运行内核
 
-当前包含 **21 项自动测试**，覆盖条件分支、变量回退、存档匹配、事务式导入、恢复副本、媒体迁移与真实 EXE 图标资源。42 节点样例的 10 条路径在保存、重开与导出后重复验证。
+当前包含 **39 项自动测试**，覆盖条件分支、变量回退、存档兼容与迁移、多项目身份隔离、事务式导入、后台恢复副本、长篇快照、媒体迁移与真实 EXE 图标资源。42 节点样例的 10 条路径在保存、重开与导出后重复验证。
 
 原生窗口也完成了从开场到结局的实际游玩，以及拖线、工程恢复、自动阅读暂停、截图存档与结局收藏检查。验证范围和限制见 [验收记录](docs/validation.md)。
 
+### 让长篇继续生长
+
+节点索引、共享撤销快照与可见区域绘制，减少长篇项目的重复工作。图片解码、恢复副本和导出移到后台，纹理缓存设有预算。5000 节点、约 230 万字的可复现数据测试与范围说明见 [长篇性能记录](docs/performance.md)。
+
+### 更新故事，也保留读者的进度
+
+0.3 存档记录最近经过节点的控制流程。改对白、换图片、调整布局后仍可继续；节点改名自动建立迁移，新增变量补齐默认值。已走过的跳转、条件或选择顺序变化时会明确提示。旧版项目自动保留 0.2 兼容基线，也可以导入历史项目版本。详见 [存档兼容说明](docs/save-compatibility.md)。
+
 ### 当前边界
 
-这是持续开发中的 **0.2 版本**。目前专注 Windows 原生创作与播放，尚不提供 Ren’Py `.rpy` 导入、任意脚本插件、配音时间轴或跨平台导出。旧项目内容发生变化后，旧存档可能因指纹不同而被拒绝读取。恢复副本不能保证保留意外退出前最后 30 秒的编辑。
+这是持续开发中的 **0.3 版本**。目前专注 Windows 原生创作与播放，尚不提供 Ren’Py `.rpy` 导入、任意脚本插件、配音时间轴或跨平台导出。剧情控制流程变化仍需作者明确处理迁移；新存档需要 0.3 播放器。工作区保留项目列表，跨次启动不保留撤销栈和未保存的试玩状态。恢复副本不能保证保留意外退出前最后 30 秒的编辑。
 
 欢迎提交可复现的问题与具体改进建议，见 [贡献指南](CONTRIBUTING.md)。
 

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "project_id": "lumen-first-light-demo-v1",
+  "fingerprint": "0ea2a058b2c7bf6107fc53051479be3ec84815b735793ebde05e5d76f3a075f5",
+  "runtime": {
+    "current": {
+      "node": "reply",
+      "flags": {
+        "kept_letter": false
+      }
+    },
+    "history": [
+      {
+        "node": "arrival",
+        "flags": {
+          "kept_letter": false
+        }
+      }
+    ]
+  },
+  "saved_at": 0,
+  "node_title": "尚未说出口"
+}

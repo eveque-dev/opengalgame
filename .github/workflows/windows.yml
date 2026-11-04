@@ -50,5 +50,5 @@ jobs:
           if ($env:RELEASE_TAG -ne "v$($package.version)") { throw 'Tag and Cargo version differ' }
           $assets = @($package.artifacts | ForEach-Object { Join-Path 'release' $_.file })
           $assets += 'release/SHA256SUMS.txt'
-          gh release create $env:RELEASE_TAG @assets --verify-tag --latest --title "OpenGalgame $($package.version)" --notes-file docs/release-v0.2.0.md
+          gh release create $env:RELEASE_TAG @assets --verify-tag --latest --title "OpenGalgame $($package.version)" --notes-file "docs/release-v$($package.version).md"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

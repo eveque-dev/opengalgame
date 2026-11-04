@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod studio;
+mod workspace;
 use anyhow::{Context, Result, ensure};
 use opengalgame::{
     model::{Severity, safe_asset, validate},
@@ -63,30 +64,28 @@ fn run() -> Result<()> {
         return Ok(());
     }
     let mut player = false;
-    let path = if args.first().map(String::as_str) == Some("--play") {
-        player = true;
-        PathBuf::from(args.get(1).context("--play 需要项目路径")?)
-    } else if args.first().map(String::as_str) == Some("--editor") {
-        PathBuf::from(args.get(1).context("--editor 需要项目路径")?)
-    } else if bundled.is_file() {
-        player = true;
-        bundled
-    } else if let Some(file) = args.first() {
-        PathBuf::from(file)
-    } else {
-        let path = directory.join("examples/long-form/project.json");
-        if path.is_file() {
-            path
-        } else {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/long-form/project.json")
+    let initial = match args.first().map(String::as_str) {
+        Some("--play") => {
+            player = true;
+            Some(PathBuf::from(args.get(1).context("--play 需要项目路径")?))
         }
+        Some("--editor") => Some(PathBuf::from(args.get(1).context("--editor 需要项目路径")?)),
+        Some("--hub") => None,
+        None if bundled.is_file() => {
+            player = true;
+            Some(bundled)
+        }
+        None => None,
+        Some(file) => Some(PathBuf::from(file)),
     };
-    let path = path
-        .canonicalize()
-        .with_context(|| format!("找不到项目：{}", path.display()))?;
-    let project = read_project(&path)?;
-    if player {
-        let issues = validate(&project, path.parent());
+    let player_project = if player {
+        let path = initial
+            .as_ref()
+            .unwrap()
+            .canonicalize()
+            .context("找不到游戏项目")?;
+        let p = read_project(&path)?;
+        let issues = validate(&p, path.parent());
         ensure!(
             !issues.iter().any(|i| i.severity == Severity::Error),
             "游戏项目包含错误：{}",
@@ -97,16 +96,19 @@ fn run() -> Result<()> {
                 .collect::<Vec<_>>()
                 .join("；")
         );
-    }
-    let title = if player {
-        format!("{} · OpenGalgame", project.title)
+        Some((p, path))
     } else {
-        "OpenGalgame".into()
+        None
     };
+    let title = player_project
+        .as_ref()
+        .map(|(p, _)| format!("{} · OpenGalgame", p.title))
+        .unwrap_or_else(|| "OpenGalgame · 项目中心".into());
     let mut viewport = eframe::egui::ViewportBuilder::default()
         .with_inner_size(if player { [1280., 860.] } else { [1480., 940.] })
         .with_min_inner_size(if player { [820., 620.] } else { [1100., 720.] });
-    if let Some(icon) = &project.presentation.icon
+    if let Some((project, path)) = &player_project
+        && let Some(icon) = &project.presentation.icon
         && let Ok(path) = safe_asset(path.parent().unwrap_or(Path::new(".")), icon)
         && let Ok(image) = image::open(path)
     {
@@ -125,10 +127,18 @@ fn run() -> Result<()> {
         centered: true,
         ..Default::default()
     };
+    let directory = directory.to_owned();
     eframe::run_native(
         &title,
         options,
-        Box::new(move |cc| Ok(Box::new(studio::Studio::new(cc, project, path, player)))),
+        Box::new(move |cc| {
+            let app: Box<dyn eframe::App> = if let Some((project, path)) = player_project {
+                Box::new(studio::Studio::new(cc, project, path, true))
+            } else {
+                Box::new(workspace::Workspace::new(cc, initial, directory))
+            };
+            Ok(app)
+        }),
     )
     .map_err(|e| anyhow::anyhow!("无法建立原生窗口或图形上下文：{e}"))?;
     Ok(())

@@ -16,11 +16,32 @@ pub struct Project {
     pub backgrounds: Vec<Background>,
     #[serde(default)]
     pub flags: BTreeMap<String, bool>,
-    pub nodes: Vec<Node>,
+    pub nodes: crate::nodes::Nodes,
     #[serde(default)]
     pub audio: Vec<AudioAsset>,
     #[serde(default)]
     pub presentation: Presentation,
+    #[serde(default)]
+    pub tasks: Vec<CreativeTask>,
+    #[serde(default)]
+    pub save_compatibility: crate::compatibility::SavePolicy,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskStatus {
+    #[default]
+    Todo,
+    Doing,
+    Done,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct CreativeTask {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub notes: String,
+    #[serde(default)]
+    pub status: TaskStatus,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Character {
@@ -240,7 +261,7 @@ impl Project {
             .count()
     }
     pub fn node(&self, id: &str) -> Option<&Node> {
-        self.nodes.iter().find(|n| n.id == id)
+        self.nodes.find(id)
     }
     pub fn next_id(&self) -> String {
         (1..)
@@ -252,10 +273,21 @@ impl Project {
         anyhow::ensure!(!new.trim().is_empty(), "节点标识不能为空");
         anyhow::ensure!(old == new || self.node(new).is_none(), "节点标识已存在");
         anyhow::ensure!(self.node(old).is_some(), "原节点不存在");
+        if old == new {
+            return Ok(());
+        }
         if self.start == old {
             self.start = new.into();
         }
-        for n in &mut self.nodes {
+        for i in 0..self.nodes.len() {
+            let n = &self.nodes[i];
+            if n.id != old
+                && n.next.as_deref() != Some(old)
+                && n.choices.iter().all(|c| c.target != old)
+            {
+                continue;
+            }
+            let n = &mut self.nodes[i];
             if n.id == old {
                 n.id = new.into();
             }
@@ -268,6 +300,15 @@ impl Project {
                 }
             }
         }
+        for target in self.save_compatibility.node_aliases.values_mut() {
+            if target == old {
+                *target = new.into();
+            }
+        }
+        self.save_compatibility.node_aliases.remove(new);
+        self.save_compatibility
+            .node_aliases
+            .insert(old.into(), new.into());
         Ok(())
     }
 }
@@ -325,6 +366,17 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
             None,
             format!("起始节点 {} 不存在", p.start),
         );
+    }
+    for old in p.save_compatibility.node_aliases.keys() {
+        if p.node(old).is_some() {
+            push(
+                Severity::Error,
+                None,
+                format!("迁移规则的旧标识 {old} 仍被现有节点占用"),
+            );
+        } else if let Err(e) = crate::compatibility::resolve(p, old) {
+            push(Severity::Error, None, format!("存档迁移规则错误：{e}"));
+        }
     }
     let mut char_ids = HashSet::new();
     for c in &p.characters {

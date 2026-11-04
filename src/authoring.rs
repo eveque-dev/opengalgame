@@ -74,6 +74,9 @@ pub fn import_dialogue(
     ensure!(terminal.is_some(), "请先添加一个结局节点，再导入连续对白");
     let mut chapter = default_chapter.to_owned();
     let mut created = vec![];
+    let mut reserved: std::collections::HashSet<String> =
+        draft.nodes.iter().map(|n| n.id.clone()).collect();
+    let mut next_import = 1usize;
     let mut background = anchor.as_ref().and_then(|n| n.background.clone());
     for line in source.lines().map(str::trim).filter(|s| !s.is_empty()) {
         if line.starts_with('[') && line.ends_with(']') {
@@ -127,10 +130,13 @@ pub fn import_dialogue(
         } else {
             None
         };
-        let id = (1..)
-            .map(|n| format!("import_{n}"))
-            .find(|id| draft.node(id).is_none() && created.iter().all(|n: &Node| &n.id != id))
-            .unwrap();
+        let id = loop {
+            let id = format!("import_{next_import}");
+            next_import += 1;
+            if reserved.insert(id.clone()) {
+                break id;
+            }
+        };
         let mut node = Node::new(id, NodeKind::Dialogue, insert + created.len());
         node.title = text.chars().take(14).collect();
         node.text = text.to_owned();
@@ -198,20 +204,66 @@ pub fn connect(project: &mut Project, port: &Port, target: &str) -> Result<()> {
     Ok(())
 }
 pub fn cycle_nodes(project: &Project) -> BTreeSet<String> {
+    let ids: std::collections::HashMap<_, _> = project
+        .nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.id.as_str(), i))
+        .collect();
+    let graph: Vec<Vec<usize>> = project
+        .nodes
+        .iter()
+        .map(|n| {
+            n.targets()
+                .into_iter()
+                .filter_map(|t| ids.get(t).copied())
+                .collect()
+        })
+        .collect();
+    let mut reverse = vec![vec![]; graph.len()];
+    for (i, edges) in graph.iter().enumerate() {
+        for &j in edges {
+            reverse[j].push(i);
+        }
+    }
+    let mut seen = vec![false; graph.len()];
+    let mut order = Vec::with_capacity(graph.len());
+    for root in 0..graph.len() {
+        let mut stack = vec![(root, false)];
+        while let Some((i, done)) = stack.pop() {
+            if done {
+                order.push(i);
+            } else if !seen[i] {
+                seen[i] = true;
+                stack.push((i, true));
+                for &j in graph[i].iter().rev() {
+                    if !seen[j] {
+                        stack.push((j, false));
+                    }
+                }
+            }
+        }
+    }
+    seen.fill(false);
     let mut cycles = BTreeSet::new();
-    for start in &project.nodes {
-        let mut queue = std::collections::VecDeque::from(start.targets());
-        let mut seen = BTreeSet::new();
-        while let Some(id) = queue.pop_front() {
-            if id == start.id {
-                cycles.insert(start.id.clone());
-                break;
+    for root in order.into_iter().rev() {
+        if seen[root] {
+            continue;
+        }
+        let mut stack = vec![root];
+        seen[root] = true;
+        let mut component = vec![];
+        while let Some(i) = stack.pop() {
+            component.push(i);
+            for &j in &reverse[i] {
+                if !seen[j] {
+                    seen[j] = true;
+                    stack.push(j);
+                }
             }
-            if seen.insert(id)
-                && let Some(n) = project.node(id)
-            {
-                queue.extend(n.targets());
-            }
+        }
+        if component.len() > 1 || graph[root].contains(&root) {
+            cycles.extend(component.into_iter().map(|i| project.nodes[i].id.clone()));
         }
     }
     cycles

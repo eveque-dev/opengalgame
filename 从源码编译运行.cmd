@@ -24,5 +24,5 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-start "" /D "%~dp0" "%~dp0target\release\opengalgame.exe" --editor "%~dp0examples\long-form\project.json"
+start "" /D "%~dp0" "%~dp0target\release\opengalgame.exe" --hub
 exit /b 0

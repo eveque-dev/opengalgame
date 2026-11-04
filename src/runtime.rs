@@ -24,6 +24,8 @@ pub struct SaveGame {
     pub saved_at: u128,
     #[serde(default)]
     pub node_title: String,
+    #[serde(default)]
+    pub compatibility: Option<crate::compatibility::SaveCompatibility>,
 }
 pub fn fingerprint(project: &Project) -> String {
     format!(
@@ -105,31 +107,23 @@ impl Runtime {
         }
     }
     pub fn save(&self, p: &Project) -> SaveGame {
+        self.save_with_fingerprint(p, &fingerprint(p))
+    }
+    pub fn save_with_fingerprint(&self, p: &Project, content_fingerprint: &str) -> SaveGame {
         SaveGame {
-            version: 1,
+            version: 2,
             project_id: p.id.clone(),
-            fingerprint: fingerprint(p),
+            fingerprint: content_fingerprint.to_owned(),
             runtime: self.clone(),
             saved_at: crate::project_io::stamp(),
             node_title: p
                 .node(&self.current.node)
                 .map(|n| n.title.clone())
                 .unwrap_or_default(),
+            compatibility: Some(crate::compatibility::capture(p, self)),
         }
     }
     pub fn load(p: &Project, s: SaveGame) -> Result<Self> {
-        ensure!(
-            s.version == 1 && s.project_id == p.id && s.fingerprint == fingerprint(p),
-            "此存档属于不同项目或旧版剧情"
-        );
-        ensure!(s.runtime.history.len() <= 500, "存档回退历史超出上限");
-        for step in std::iter::once(&s.runtime.current).chain(s.runtime.history.iter()) {
-            ensure!(p.node(&step.node).is_some(), "存档包含不存在的节点");
-            ensure!(
-                step.flags.len() == p.flags.len() && step.flags.keys().eq(p.flags.keys()),
-                "存档变量与项目不匹配"
-            );
-        }
-        Ok(s.runtime)
+        crate::compatibility::load(p, s).map(|(runtime, _)| runtime)
     }
 }

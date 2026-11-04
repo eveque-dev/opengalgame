@@ -57,7 +57,8 @@ pub(super) struct Advanced {
     pub recent: Vec<PathBuf>,
     pub recovery: Option<recovery::Snapshot>,
     pub checkpoint_at: Instant,
-    pub checkpoint_hash: String,
+    pub checkpoint_revision: u64,
+    pub background_page: usize,
     pub link_drag: Option<Port>,
     pub link_active: bool,
     pub edge: Option<Port>,
@@ -110,7 +111,8 @@ impl Advanced {
                 recovery::candidate(path, project)
             },
             checkpoint_at: Instant::now(),
-            checkpoint_hash: String::new(),
+            checkpoint_revision: 0,
+            background_page: 0,
             link_drag: None,
             link_active: false,
             edge: None,
@@ -134,6 +136,30 @@ impl Advanced {
     }
 }
 impl Studio {
+    pub(crate) fn maintain_recovery(&mut self, ctx: &egui::Context) {
+        if let Some(result) = self.checkpoints.poll() {
+            match result {
+                Ok(()) => {
+                    if !self.status_error && self.dirty() {
+                        self.status = "恢复副本已写入，正式项目仍需 Ctrl+S 保存。".into();
+                    }
+                }
+                Err(e) => self.message(Err::<String, _>(anyhow::anyhow!(e))),
+            }
+        }
+        if !self.player_only && self.dirty() {
+            ctx.request_repaint_after(Duration::from_secs(1));
+            if self.advanced.checkpoint_at.elapsed() >= Duration::from_secs(30) {
+                self.advanced.checkpoint_at = Instant::now();
+                if self.advanced.checkpoint_revision != self.revision {
+                    self.checkpoints
+                        .schedule(&self.path, &self.saved, &self.project, ctx);
+                    self.advanced.checkpoint_revision = self.revision;
+                }
+            }
+        }
+    }
+
     pub(super) fn prepare_scene(
         &mut self,
         node: &Node,
@@ -296,7 +322,7 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
         &mut self,
         ui: &mut egui::Ui,
         canvas: Rect,
-        nodes: &[Node],
+        nodes: &opengalgame::nodes::Nodes,
         zoom: f32,
     ) {
         if self.runtime.is_some() {
@@ -343,6 +369,13 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
             }
         }
         for node in nodes {
+            let node_rect = Rect::from_min_size(
+                canvas.min + Vec2::new(node.position[0], node.position[1]) * zoom,
+                Vec2::new(222., (56. + node.choices.len() as f32 * 24.).max(105.)) * zoom,
+            );
+            if !node_rect.expand(16.).intersects(visible) {
+                continue;
+            }
             let input = canvas.min + Vec2::new(node.position[0], node.position[1] + 48.) * zoom;
             let r = ui.interact(
                 Rect::from_center_size(input, Vec2::splat(24.)),
@@ -660,13 +693,41 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
                 tags: String::new(),
             });
         }
+        self.advanced.background_page = self
+            .advanced
+            .background_page
+            .min(self.project.backgrounds.len().saturating_sub(1) / 18);
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(
+                    self.advanced.background_page > 0,
+                    egui::Button::new("上一页"),
+                )
+                .clicked()
+            {
+                self.advanced.background_page -= 1;
+            }
+            ui.label(format!("第 {} 页", self.advanced.background_page + 1));
+            if ui
+                .add_enabled(
+                    (self.advanced.background_page + 1) * 18 < self.project.backgrounds.len(),
+                    egui::Button::new("下一页"),
+                )
+                .clicked()
+            {
+                self.advanced.background_page += 1;
+            }
+        });
         let columns = (ui.available_width() / 300.).floor().max(1.) as usize;
         egui::ScrollArea::vertical().show(ui, |ui| {
             egui::Grid::new("background_grid")
                 .num_columns(columns)
                 .spacing([16., 16.])
                 .show(ui, |ui| {
-                    for i in 0..self.project.backgrounds.len() {
+                    for i in self.advanced.background_page * 18
+                        ..((self.advanced.background_page + 1) * 18)
+                            .min(self.project.backgrounds.len())
+                    {
                         ui.push_id(i, |ui| {
                             egui::Frame::new()
                                 .fill(PANEL)
@@ -675,7 +736,7 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
                                 .show(ui, |ui| {
                                     ui.set_width(260.);
                                     let b = self.project.backgrounds[i].clone();
-                                    if let Some(tex) = self.texture(ui.ctx(), &b.file) {
+                                    if let Some(tex) = self.thumbnail(ui.ctx(), &b.file) {
                                         ui.add(
                                             egui::Image::new((tex.id(), Vec2::new(260., 146.)))
                                                 .fit_to_exact_size(Vec2::new(260., 146.)),
@@ -1002,24 +1063,7 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
                 ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(slot)));
             }
         }
-        if !self.player_only && self.dirty() {
-            ctx.request_repaint_after(Duration::from_secs(1));
-            if self.advanced.checkpoint_at.elapsed() >= Duration::from_secs(30) {
-                self.advanced.checkpoint_at = Instant::now();
-                let hash = fingerprint(&self.project);
-                if hash != self.advanced.checkpoint_hash {
-                    match recovery::checkpoint(&self.path, &self.saved, &self.project) {
-                        Ok(()) => {
-                            self.advanced.checkpoint_hash = hash;
-                            if !self.status_error {
-                                self.status = "已保存恢复副本，正式项目仍需 Ctrl+S 保存。".into();
-                            }
-                        }
-                        Err(e) => self.message(Err::<String, _>(e)),
-                    }
-                }
-            }
-        }
+        self.maintain_recovery(ctx);
         if self.runtime.is_none() && !self.advanced.title_screen && !self.advanced.preview_audio {
             self.advanced.sound.stop();
         }
