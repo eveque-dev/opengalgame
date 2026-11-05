@@ -14,6 +14,10 @@ pub const HEADER: [&str; 9] = [
     "演出与选项",
 ];
 pub fn parse(text: &str) -> Result<Vec<Vec<String>>> {
+    parse_delimited(text, ',')
+}
+pub fn parse_delimited(text: &str, delimiter: char) -> Result<Vec<Vec<String>>> {
+    ensure!([',', '\t'].contains(&delimiter), "表格分隔符无效");
     ensure!(text.len() <= 20 * 1024 * 1024, "CSV 最多 20 MB");
     let mut rows = vec![];
     let mut row = vec![];
@@ -41,7 +45,7 @@ pub fn parse(text: &str) -> Result<Vec<Vec<String>>> {
                 ensure!(field.is_empty() && !closed, "CSV 引号位置无效");
                 quoted = true;
             }
-            ',' => {
+            value if value == delimiter => {
                 row.push(std::mem::take(&mut field));
                 closed = false;
             }
@@ -200,7 +204,7 @@ pub fn preview(p: &Project, text: &str) -> Result<Preview> {
     }
     ensure!(draft.nodes.len() <= 10000, "项目最多 10000 个节点");
     if draft.uses_typed_logic() {
-        draft.format_version = 2;
+        draft.format_version = draft.format_version.max(2);
     }
     let errors: Vec<_> = validate(&draft, None)
         .into_iter()
@@ -227,4 +231,111 @@ pub fn check_project(path: &Path) -> Result<()> {
     let p = read_project(path)?;
     preview(&p, &export(&p)?)?;
     Ok(())
+}
+/// Clipboard columns deliberately exclude stable IDs and rich metadata.
+pub fn copy_grid(p: &Project, ids: &[String]) -> Result<String> {
+    let mut out = String::new();
+    for id in ids {
+        let n = p
+            .node(id)
+            .ok_or_else(|| anyhow::anyhow!("复制节点不存在"))?;
+        let fields = [
+            n.chapter.clone(),
+            n.kind.label().into(),
+            n.title.clone(),
+            n.character.clone().unwrap_or_default(),
+            n.text.clone(),
+            n.background.clone().unwrap_or_default(),
+            n.next.clone().unwrap_or_default(),
+        ];
+        out.push_str(
+            &fields
+                .iter()
+                .map(|f| quote(f))
+                .collect::<Vec<_>>()
+                .join("\t"),
+        );
+        out.push_str("\r\n");
+    }
+    Ok(out)
+}
+pub fn paste_grid(p: &Project, targets: &[String], column: usize, text: &str) -> Result<Project> {
+    ensure!(column < 7, "起始列无效");
+    let rows = parse_delimited(text, '\t')?;
+    ensure!(
+        !rows.is_empty() && rows.len() <= targets.len(),
+        "粘贴行数超出当前筛选结果；请先新建需要的节点"
+    );
+    let mut draft = p.clone();
+    for (row, id) in rows.iter().zip(targets) {
+        ensure!(
+            !row.is_empty() && column + row.len() <= 7,
+            "粘贴列数超出表格范围"
+        );
+        let index = draft
+            .nodes
+            .iter()
+            .position(|n| &n.id == id)
+            .ok_or_else(|| anyhow::anyhow!("粘贴节点不存在"))?;
+        for (i, value) in row.iter().enumerate() {
+            match column + i {
+                0 => draft.nodes[index].chapter = value.clone(),
+                1 => {
+                    draft.nodes[index].kind = match value.trim() {
+                        "对白" | "dialogue" => NodeKind::Dialogue,
+                        "选择" | "choice" => NodeKind::Choice,
+                        "结局" | "ending" => NodeKind::Ending,
+                        _ => anyhow::bail!("节点类型无效"),
+                    }
+                }
+                2 => draft.nodes[index].title = value.clone(),
+                3 => {
+                    let character = if value.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            p.characters
+                                .iter()
+                                .find(|c| c.id == *value || c.name == *value)
+                                .ok_or_else(|| anyhow::anyhow!("人物 {value} 不存在"))?
+                                .id
+                                .clone(),
+                        )
+                    };
+                    if draft.nodes[index].character != character {
+                        draft.nodes[index].expression = None;
+                    }
+                    draft.nodes[index].character = character;
+                }
+                4 => draft.nodes[index].text = value.clone(),
+                5 => {
+                    draft.nodes[index].background = if value.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            p.backgrounds
+                                .iter()
+                                .find(|b| b.id == *value || b.name == *value)
+                                .ok_or_else(|| anyhow::anyhow!("背景 {value} 不存在"))?
+                                .id
+                                .clone(),
+                        )
+                    }
+                }
+                6 => {
+                    draft.nodes[index].next =
+                        (!value.trim().is_empty()).then(|| value.trim().into())
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+    let errors: Vec<_> = validate(&draft, None)
+        .into_iter()
+        .filter(|i| i.severity == Severity::Error)
+        .map(|i| i.message)
+        .take(6)
+        .collect();
+    ensure!(errors.is_empty(), "粘贴未应用：{}", errors.join("；"));
+    Ok(draft)
 }

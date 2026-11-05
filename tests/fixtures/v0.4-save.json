@@ -1,0 +1,37 @@
+{
+  "version": 3,
+  "project_id": "opengalgame-harbor-signals-v4",
+  "fingerprint": "5e1fcb475444520e68a3f5eaf5f1fa6b3b215c86c3ef501f0dcbcfa0dc128e61",
+  "runtime": {
+    "current": {
+      "node": "return",
+      "flags": {
+        "read_letter": false
+      },
+      "variables": {
+        "affinity": 0,
+        "clues": 0,
+        "promised": false,
+        "signature": "旅人"
+      }
+    },
+    "history": []
+  },
+  "saved_at": 1793818622762,
+  "node_title": "回到灯塔",
+  "compatibility": {
+    "nodes": {
+      "return": {
+        "kind": "dialogue",
+        "next": "meeting",
+        "choices": []
+      }
+    },
+    "variables": {
+      "affinity": "number",
+      "clues": "number",
+      "promised": "bool",
+      "signature": "text"
+    }
+  }
+}

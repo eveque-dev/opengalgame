@@ -11,7 +11,11 @@ pub(super) struct TableState {
     pub key: String,
     pub rows: Vec<Row>,
     pub preview: Option<opengalgame::spreadsheet::Preview>,
+    pub active: Option<(String, usize)>,
+    pub pending_focus: Option<(String, usize)>,
+    pub visible: std::ops::Range<usize>,
 }
+#[derive(Clone)]
 pub(super) enum Row {
     Chapter(String, usize),
     Node(usize),
@@ -29,6 +33,9 @@ impl Default for TableState {
             key: String::new(),
             rows: vec![],
             preview: None,
+            active: None,
+            pending_focus: None,
+            visible: 0..0,
         }
     }
 }
@@ -208,31 +215,7 @@ impl Studio {
             .map(|b| (b.id.clone(), b.name.clone()))
             .collect();
         let targets = self.node_targets();
-        let mut jump = None;
-        let mut collapse = None;
-        egui::ScrollArea::horizontal().id_salt("table_horizontal").show(ui,|ui|{
-            ui.set_min_width(1460.);ui.horizontal(|ui|{for(width,label)in[(32.,"选"),(165.,"标识 / 章节"),(95.,"类型"),(150.,"场景标题"),(170.,"发言人"),(350.,"正文"),(170.,"背景"),(190.,"下一节点"),(65.,"定位")]{ui.add_sized([width,28.],egui::Label::new(RichText::new(label).strong().color(MUTED)));}});ui.separator();
-            egui::ScrollArea::vertical().id_salt("script_table").max_height(ui.available_height().max(160.)).show_rows(ui,100.,self.v4.table.rows.len(),|ui,range|{
-                for row in range{match &self.v4.table.rows[row]{Row::Chapter(chapter,count)=>{ui.horizontal(|ui|{if ui.button(format!("{}  {}  ·  {count} 段",if self.v4.table.collapsed.contains(chapter){"＋"}else{"−"},chapter)).clicked(){collapse=Some(chapter.clone());}});ui.add_space(55.);},Row::Node(index)=>{let node=&mut self.project.nodes[*index];ui.push_id(&node.id,|ui|{egui::Frame::new().fill(if self.v4.table.selected.contains(&node.id){Color32::from_rgb(55,49,77)}else{PANEL}).inner_margin(2).show(ui,|ui|{ui.horizontal(|ui|{
-                    let mut selected=self.v4.table.selected.contains(&node.id);if ui.add_sized([32.,68.],egui::Checkbox::without_text(&mut selected)).changed(){if selected{self.v4.table.selected.insert(node.id.clone());}else{self.v4.table.selected.remove(&node.id);}}
-                    ui.allocate_ui_with_layout(Vec2::new(165.,78.),egui::Layout::top_down(egui::Align::Min),|ui|{ui.label(RichText::new(&node.id).small().color(ACCENT));ui.add_sized([160.,34.],egui::TextEdit::singleline(&mut node.chapter));});
-                    ui.allocate_ui_with_layout(Vec2::new(95.,78.),egui::Layout::top_down(egui::Align::Min),|ui|{egui::ComboBox::from_id_salt("kind").width(85.).selected_text(node.kind.label()).show_ui(ui,|ui|{for kind in[NodeKind::Dialogue,NodeKind::Choice,NodeKind::Ending]{ui.selectable_value(&mut node.kind,kind,kind.label());}});});
-                    ui.add_sized([150.,68.],egui::TextEdit::multiline(&mut node.title).desired_rows(2));
-                    ui.allocate_ui_with_layout(Vec2::new(170.,78.),egui::Layout::top_down(egui::Align::Min),|ui|{let old=node.character.clone();compact_optional(ui,"speaker",&mut node.character,&chars,"旁白");if old!=node.character{node.expression=None;}});
-                    ui.add_sized([350.,68.],egui::TextEdit::multiline(&mut node.text).desired_rows(2));
-                    ui.allocate_ui_with_layout(Vec2::new(170.,78.),egui::Layout::top_down(egui::Align::Min),|ui|{compact_optional(ui,"background",&mut node.background,&bgs,"纯色舞台");});
-                    ui.allocate_ui_with_layout(Vec2::new(190.,78.),egui::Layout::top_down(egui::Align::Min),|ui|{if node.kind==NodeKind::Dialogue{let mut next=node.next.clone().unwrap_or_default();egui::ComboBox::from_id_salt("next").width(180.).selected_text(&next).show_ui(ui,|ui|{egui::ScrollArea::vertical().max_height(220.).show_rows(ui,34.,targets.len(),|ui,range|{for i in range{ui.selectable_value(&mut next,targets[i].0.clone(),&targets[i].1);}});});node.next=(!next.is_empty()).then_some(next);}else{ui.label(if node.kind==NodeKind::Choice{"在场景中编辑选项"}else{"终点"});}});
-                    if ui.add_sized([65.,36.],egui::Button::new("场景")).clicked(){jump=Some(*index);}
-                });});});}}
-                }
-            });
-        });
-        if let Some(chapter) = collapse {
-            if !self.v4.table.collapsed.remove(&chapter) {
-                self.v4.table.collapsed.insert(chapter);
-            }
-            self.v4.table.revision = u64::MAX;
-        }
+        let jump = self.table_grid(ui, &chars, &bgs, &targets);
         if let Some(index) = jump {
             self.select(index);
             self.section = Section::Script;
@@ -258,6 +241,373 @@ impl Studio {
                 Err(e) => self.message(Err::<String, _>(e)),
             }
         }
+    }
+    fn table_grid(
+        &mut self,
+        ui: &mut egui::Ui,
+        chars: &[(String, String)],
+        bgs: &[(String, String)],
+        targets: &[(String, String)],
+    ) -> Option<usize> {
+        let ids: Vec<String> = self
+            .v4
+            .table
+            .rows
+            .iter()
+            .filter_map(|row| match row {
+                Row::Node(i) => Some(self.project.nodes[*i].id.clone()),
+                _ => None,
+            })
+            .collect();
+        ui.horizontal_wrapped(|ui|{
+            if ui.add_enabled(!self.v4.table.selected.is_empty(),egui::Button::new("复制所选行")).clicked(){
+                let selected:Vec<_>=ids.iter().filter(|id|self.v4.table.selected.contains(*id)).cloned().collect();
+                match opengalgame::spreadsheet::copy_grid(&self.project,&selected){Ok(text)=>ui.ctx().copy_text(text),Err(e)=>self.message(Err::<String,_>(e))}
+            }
+            ui.label(RichText::new("文本格：Tab / Shift+Tab 换格，Enter 换行，Shift+Enter 写正文换行；含制表符的粘贴按单元格应用。").small().color(MUTED));
+            if ui.small_button("重置列宽").clicked(){self.v5.layout.columns=v5::Layout::default().columns;}
+        });
+        if self.runtime.is_none()
+            && ui.is_enabled()
+            && let Some((id, col)) = self.v4.table.active.clone()
+        {
+            let focused = ui
+                .ctx()
+                .memory(|m| m.has_focus(cell_id(&self.path, &id, col)));
+            if focused {
+                let paste = ui.ctx().input_mut(|input| {
+                    let index = input
+                        .events
+                        .iter()
+                        .position(|e| matches!(e,egui::Event::Paste(text) if text.contains('\t')));
+                    index.and_then(|i| match input.events.remove(i) {
+                        egui::Event::Paste(text) => Some(text),
+                        _ => None,
+                    })
+                });
+                if let Some(text) = paste
+                    && let Some(start) = ids.iter().position(|n| n == &id)
+                {
+                    let column = match col {
+                        1 => 0,
+                        3 => 2,
+                        5 => 4,
+                        _ => 0,
+                    };
+                    match opengalgame::spreadsheet::paste_grid(
+                        &self.project,
+                        &ids[start..],
+                        column,
+                        &text,
+                    ) {
+                        Ok(project) => {
+                            self.project = project;
+                            self.last_edit = Instant::now() - Duration::from_secs(2);
+                            self.message(Ok("表格粘贴已应用，可撤销。"));
+                        }
+                        Err(e) => self.message(Err::<String, _>(e)),
+                    }
+                }
+                let movement = ui.ctx().input_mut(|input| {
+                    if input.consume_key(egui::Modifiers::SHIFT, egui::Key::Tab) {
+                        Some((0, -1))
+                    } else if input.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {
+                        Some((0, 1))
+                    } else if input.consume_key(egui::Modifiers::CTRL, egui::Key::ArrowUp) {
+                        Some((-1, 0))
+                    } else if input.consume_key(egui::Modifiers::CTRL, egui::Key::ArrowDown)
+                        || input.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+                    {
+                        Some((1, 0))
+                    } else {
+                        None
+                    }
+                });
+                if let Some((dr, dc)) = movement
+                    && let Some(row) = ids.iter().position(|n| n == &id)
+                {
+                    let fields = [1, 3, 5];
+                    let current = fields.iter().position(|c| *c == col).unwrap_or(0);
+                    let flat = (row * 3 + current) as isize + dr * 3 + dc;
+                    if flat >= 0 && flat < (ids.len() * 3) as isize {
+                        self.v4.table.pending_focus =
+                            Some((ids[flat as usize / 3].clone(), fields[flat as usize % 3]));
+                    }
+                }
+            }
+        }
+        let pending_row = self.v4.table.pending_focus.as_ref().and_then(|(id, _)| {
+            self.v4
+                .table
+                .rows
+                .iter()
+                .position(|r| matches!(r,Row::Node(i) if self.project.nodes[*i].id==*id))
+        });
+        let mut jump = None;
+        let mut collapse = None;
+        let mut widths = self.v5.layout.columns;
+        let path = self.path.clone();
+        egui::ScrollArea::horizontal()
+            .id_salt("table_horizontal")
+            .show(ui, |ui| {
+                ui.set_min_width(widths.iter().sum::<f32>() + 80.);
+                ui.horizontal(|ui| {
+                    for (i, label) in [
+                        "选",
+                        "标识 / 章节",
+                        "类型",
+                        "场景标题",
+                        "发言人",
+                        "正文",
+                        "背景",
+                        "下一节点",
+                        "定位",
+                    ]
+                    .iter()
+                    .enumerate()
+                    {
+                        ui.add_sized(
+                            [widths[i], 28.],
+                            egui::Label::new(RichText::new(*label).strong().color(MUTED)),
+                        );
+                        if i < 8 {
+                            let (rect, response) =
+                                ui.allocate_exact_size(Vec2::new(4., 28.), Sense::drag());
+                            ui.painter().vline(
+                                rect.center().x,
+                                rect.y_range(),
+                                Stroke::new(1.0_f32, FIELD),
+                            );
+                            let response =
+                                response.on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
+                            if response.dragged() {
+                                widths[i] = (widths[i] + response.drag_delta().x)
+                                    .clamp(if i == 0 { 28. } else { 65. }, 800.);
+                            }
+                        }
+                    }
+                });
+                ui.separator();
+                let mut scroll = egui::ScrollArea::vertical()
+                    .id_salt("script_table")
+                    .max_height(ui.available_height().max(160.));
+                if let Some(row) = pending_row
+                    && !self.v4.table.visible.contains(&row)
+                {
+                    scroll = scroll.vertical_scroll_offset(row as f32 * 110.);
+                }
+                scroll.show_rows(ui, 100., self.v4.table.rows.len(), |ui, range| {
+                    self.v4.table.visible = range.clone();
+                    for row in range {
+                        let entry = self.v4.table.rows[row].clone();
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(ui.available_width(), 100.),
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| match entry {
+                                Row::Chapter(chapter, count) => {
+                                    if ui
+                                        .button(format!(
+                                            "{}  {} · {count} 段",
+                                            if self.v4.table.collapsed.contains(&chapter) {
+                                                "＋"
+                                            } else {
+                                                "−"
+                                            },
+                                            chapter
+                                        ))
+                                        .clicked()
+                                    {
+                                        collapse = Some(chapter);
+                                    }
+                                }
+                                Row::Node(index) => {
+                                    let node = &mut self.project.nodes[index];
+                                    ui.push_id(&node.id, |ui| {
+                                        egui::Frame::new()
+                                            .fill(if self.v4.table.selected.contains(&node.id) {
+                                                Color32::from_rgb(55, 49, 77)
+                                            } else {
+                                                PANEL
+                                            })
+                                            .inner_margin(2)
+                                            .show(ui, |ui| {
+                                                ui.horizontal(|ui| {
+                                                    let mut selected =
+                                                        self.v4.table.selected.contains(&node.id);
+                                                    if ui
+                                                        .add_sized(
+                                                            [widths[0], 78.],
+                                                            egui::Checkbox::without_text(
+                                                                &mut selected,
+                                                            ),
+                                                        )
+                                                        .changed()
+                                                    {
+                                                        if selected {
+                                                            self.v4
+                                                                .table
+                                                                .selected
+                                                                .insert(node.id.clone());
+                                                        } else {
+                                                            self.v4.table.selected.remove(&node.id);
+                                                        }
+                                                    }
+                                                    ui.add_space(4.);
+                                                    ui.allocate_ui_with_layout(
+                                                        Vec2::new(widths[1], 78.),
+                                                        egui::Layout::top_down(egui::Align::Min),
+                                                        |ui| {
+                                                            ui.label(
+                                                                RichText::new(&node.id)
+                                                                    .small()
+                                                                    .color(ACCENT),
+                                                            );
+                                                            text_cell(
+                                                                ui,
+                                                                &path,
+                                                                &node.id,
+                                                                1,
+                                                                &mut node.chapter,
+                                                                Vec2::new(widths[1], 34.),
+                                                                false,
+                                                                &mut self.v4.table,
+                                                            );
+                                                        },
+                                                    );
+                                                    ui.add_space(4.);
+                                                    ui.allocate_ui_with_layout(
+                                                        Vec2::new(widths[2], 78.),
+                                                        egui::Layout::top_down(egui::Align::Min),
+                                                        |ui| {
+                                                            egui::ComboBox::from_id_salt("kind")
+                                                                .width((widths[2] - 10.).max(55.))
+                                                                .selected_text(node.kind.label())
+                                                                .show_ui(ui, |ui| {
+                                                                    for kind in [
+                                                                        NodeKind::Dialogue,
+                                                                        NodeKind::Choice,
+                                                                        NodeKind::Ending,
+                                                                    ] {
+                                                                        ui.selectable_value(
+                                                                            &mut node.kind,
+                                                                            kind,
+                                                                            kind.label(),
+                                                                        );
+                                                                    }
+                                                                });
+                                                        },
+                                                    );
+                                                    ui.add_space(4.);
+                                                    text_cell(
+                                                        ui,
+                                                        &path,
+                                                        &node.id,
+                                                        3,
+                                                        &mut node.title,
+                                                        Vec2::new(widths[3], 68.),
+                                                        false,
+                                                        &mut self.v4.table,
+                                                    );
+                                                    ui.add_space(4.);
+                                                    ui.allocate_ui_with_layout(
+                                                        Vec2::new(widths[4], 78.),
+                                                        egui::Layout::top_down(egui::Align::Min),
+                                                        |ui| {
+                                                            let old = node.character.clone();
+                                                            sized_optional(
+                                                                ui,
+                                                                "speaker",
+                                                                &mut node.character,
+                                                                chars,
+                                                                "旁白",
+                                                                widths[4],
+                                                            );
+                                                            if old != node.character {
+                                                                node.expression = None;
+                                                            }
+                                                        },
+                                                    );
+                                                    ui.add_space(4.);
+                                                    text_cell(
+                                                        ui,
+                                                        &path,
+                                                        &node.id,
+                                                        5,
+                                                        &mut node.text,
+                                                        Vec2::new(widths[5], 68.),
+                                                        true,
+                                                        &mut self.v4.table,
+                                                    );
+                                                    ui.add_space(4.);
+                                                    ui.allocate_ui_with_layout(
+                                                        Vec2::new(widths[6], 78.),
+                                                        egui::Layout::top_down(egui::Align::Min),
+                                                        |ui| {
+                                                            sized_optional(
+                                                                ui,
+                                                                "background",
+                                                                &mut node.background,
+                                                                bgs,
+                                                                "纯色舞台",
+                                                                widths[6],
+                                                            );
+                                                        },
+                                                    );
+                                                    ui.add_space(4.);
+                                                    ui.allocate_ui_with_layout(
+                                                        Vec2::new(widths[7], 78.),
+                                                        egui::Layout::top_down(egui::Align::Min),
+                                                        |ui| {
+                                                            if node.kind == NodeKind::Dialogue {
+                                                                let mut value = node.next.clone();
+                                                                sized_optional(
+                                                                    ui,
+                                                                    "next",
+                                                                    &mut value,
+                                                                    targets,
+                                                                    "无跳转",
+                                                                    widths[7],
+                                                                );
+                                                                node.next = value;
+                                                            } else {
+                                                                ui.label(
+                                                                    if node.kind == NodeKind::Choice
+                                                                    {
+                                                                        "在场景中编辑选项"
+                                                                    } else {
+                                                                        "终点"
+                                                                    },
+                                                                );
+                                                            }
+                                                        },
+                                                    );
+                                                    ui.add_space(4.);
+                                                    if ui
+                                                        .add_sized(
+                                                            [widths[8], 36.],
+                                                            egui::Button::new("场景"),
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        jump = Some(index);
+                                                    }
+                                                });
+                                            });
+                                    });
+                                }
+                            },
+                        );
+                    }
+                });
+            });
+        self.v5.layout.columns = widths;
+        if let Some(chapter) = collapse {
+            if !self.v4.table.collapsed.remove(&chapter) {
+                self.v4.table.collapsed.insert(chapter);
+            }
+            self.v4.table.revision = u64::MAX;
+        }
+        jump
     }
     pub(super) fn csv_preview(&mut self, ctx: &egui::Context) {
         if self.v4.table.preview.is_none() {
@@ -312,25 +662,69 @@ impl Studio {
         }
     }
 }
-fn compact_optional(
+fn cell_id(path: &Path, id: &str, column: usize) -> egui::Id {
+    egui::Id::new(("grid_cell", path, id, column))
+}
+#[allow(clippy::too_many_arguments)]
+fn text_cell(
+    ui: &mut egui::Ui,
+    path: &Path,
+    id: &str,
+    column: usize,
+    value: &mut String,
+    size: Vec2,
+    multiline: bool,
+    state: &mut TableState,
+) {
+    let widget_id = cell_id(path, id, column);
+    if state
+        .pending_focus
+        .as_ref()
+        .is_some_and(|(node, col)| node == id && *col == column)
+    {
+        ui.ctx().memory_mut(|m| m.request_focus(widget_id));
+        state.pending_focus = None;
+    }
+    let editor = if multiline {
+        egui::TextEdit::multiline(value).return_key(egui::KeyboardShortcut::new(
+            egui::Modifiers::SHIFT,
+            egui::Key::Enter,
+        ))
+    } else {
+        egui::TextEdit::singleline(value)
+    };
+    let response = ui.add_sized(size, editor.id(widget_id).char_limit(65536));
+    if response.has_focus() {
+        state.active = Some((id.into(), column));
+    }
+}
+fn sized_optional(
     ui: &mut egui::Ui,
     id: &str,
     value: &mut Option<String>,
     items: &[(String, String)],
     empty: &str,
+    width: f32,
 ) {
     let label = value
         .as_ref()
         .and_then(|v| items.iter().find(|(k, _)| k == v))
-        .map(|(_, v)| v.as_str())
+        .map(|(_, label)| label.as_str())
         .unwrap_or(empty);
     egui::ComboBox::from_id_salt(id)
-        .width(160.)
+        .width((width - 10.).max(55.))
         .selected_text(label)
         .show_ui(ui, |ui| {
             ui.selectable_value(value, None, empty);
-            for (key, name) in items {
-                ui.selectable_value(value, Some(key.clone()), name);
-            }
+            egui::ScrollArea::vertical().max_height(240.).show_rows(
+                ui,
+                34.,
+                items.len(),
+                |ui, range| {
+                    for i in range {
+                        ui.selectable_value(value, Some(items[i].0.clone()), &items[i].1);
+                    }
+                },
+            );
         });
 }

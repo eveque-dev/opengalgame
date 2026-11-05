@@ -6,7 +6,7 @@ use crate::{
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Command {
     Advance { choice: Option<usize> },
@@ -23,15 +23,7 @@ impl Command {
                 Ok(())
             }
             Self::Set { variable, value } => logic::set(p, &mut r.current, variable, value.clone()),
-            Self::Jump { node } => {
-                ensure!(p.node(node).is_some(), "调试目标节点不存在");
-                r.history.push(r.current.clone());
-                if r.history.len() > 500 {
-                    r.history.remove(0);
-                }
-                r.current.node = node.clone();
-                Ok(())
-            }
+            Self::Jump { node } => r.jump(p, node),
         }
     }
 }

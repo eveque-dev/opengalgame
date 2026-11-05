@@ -333,7 +333,7 @@ impl Studio {
                     self.project
                         .variables
                         .insert(key, self.v4.new_kind.initial());
-                    self.project.format_version = 2;
+                    self.project.format_version = self.project.format_version.max(2);
                     self.v4.new_variable.clear();
                 }
             }

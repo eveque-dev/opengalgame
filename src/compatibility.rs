@@ -42,6 +42,10 @@ pub struct NodeSignature {
     pub kind: NodeKind,
     pub next: Option<String>,
     pub choices: Vec<ChoiceSignature>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub enter: Vec<crate::logic::Effect>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exit: Vec<crate::logic::Effect>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ChoiceSignature {
@@ -57,6 +61,8 @@ impl NodeSignature {
     pub fn of(node: &Node) -> Self {
         Self {
             kind: node.kind,
+            enter: node.direction.enter.clone(),
+            exit: node.direction.exit.clone(),
             next: if node.kind == NodeKind::Dialogue {
                 node.next.clone()
             } else {
@@ -210,7 +216,8 @@ impl LoadReport {
 }
 pub fn load(p: &Project, save: SaveGame) -> Result<(Runtime, LoadReport)> {
     ensure!(save.project_id == p.id, "此存档属于其他作品");
-    ensure!([1, 2, 3].contains(&save.version), "不支持的存档版本");
+    ensure!([1, 2, 3, 4].contains(&save.version), "不支持的存档版本");
+    ensure!(save.runtime.error.is_none(), "此存档包含无效运行状态");
     ensure!(save.runtime.history.len() <= 500, "存档回退历史超出上限");
     let mut report = LoadReport {
         legacy: save.version == 1,
@@ -301,6 +308,19 @@ pub fn load(p: &Project, save: SaveGame) -> Result<(Runtime, LoadReport)> {
             migrated.insert(old);
         }
         step.node = id;
+        for stage in [&mut step.stage, &mut step.scene_start]
+            .into_iter()
+            .flatten()
+        {
+            crate::assets::migrate_stage(p, stage);
+            stage.validate(p)?;
+        }
+        if let Some(start) = &step.scene_start {
+            let fresh =
+                crate::production::StageState::entry(p, p.node(&step.node).unwrap(), Some(start));
+            step.stage = Some(fresh.finished(p.node(&step.node).unwrap()));
+            step.scene_start = Some(fresh);
+        }
     }
     report.migrated_nodes = migrated.len();
     report.added_flags = added.into_iter().collect();

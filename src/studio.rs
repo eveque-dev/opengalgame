@@ -3,10 +3,14 @@ use opengalgame::{model::*, project_io::*, runtime::*};
 mod advanced;
 mod checkpoints;
 mod debug_ui;
+mod direction_ui;
 mod images;
 mod logic_ui;
+mod production_player;
+mod production_ui;
 mod table_ui;
 mod v4;
+mod v5;
 use advanced::Advanced;
 use std::{
     collections::HashMap,
@@ -34,6 +38,10 @@ enum Section {
     Check,
     Project,
     Audio,
+    Direction,
+    Theme,
+    Assets,
+    Tests,
 }
 enum Pending {
     Open(PathBuf),
@@ -57,6 +65,7 @@ pub(crate) enum WorkspaceRequest {
 }
 pub struct Studio {
     v4: v4::V4,
+    v5: v5::V5,
     pub(crate) managed: bool,
     pub(crate) external_modal: bool,
     alias_old: String,
@@ -178,6 +187,7 @@ impl Studio {
             .unwrap_or_default();
         Self {
             v4: Default::default(),
+            v5: v5::V5::new(&path),
             managed: false,
             external_modal: false,
             alias_old: String::new(),
@@ -249,6 +259,9 @@ impl Studio {
         &self.path
     }
     pub(crate) fn pause(&mut self) {
+        if !self.player_only {
+            let _ = write_json(&v5::V5::layout_path(&self.path), &self.v5.layout);
+        }
         self.v4.debug.running = false;
         self.auto = false;
         self.advanced.sound.stop();
@@ -362,6 +375,12 @@ impl Studio {
         } else {
             Runtime::new(&self.project)
         });
+        if let Some(error) = self.runtime.as_ref().and_then(|r| r.error.clone()) {
+            self.runtime = None;
+            self.message(Err::<String, _>(anyhow::anyhow!(error)));
+            return;
+        }
+        self.v5.instant_scene = false;
         if !self.player_only
             && let Some(runtime) = &self.runtime
         {
@@ -417,6 +436,8 @@ impl Studio {
             self.message(Err::<String, _>(e));
             return;
         }
+        self.v5.instant_scene = matches!(action, Action::Back);
+        self.advanced.scene_key.clear();
         if !self.player_only {
             if matches!(action, Action::Restart) {
                 self.v4.debug.start(&self.project, runtime);
@@ -473,6 +494,7 @@ impl Studio {
         })();
         match result {
             Ok((r, report)) => {
+                self.v5.instant_scene = true;
                 if !self.player_only {
                     self.v4.debug.start(&self.project, &r);
                 }
@@ -545,6 +567,7 @@ impl Studio {
                         presentation: Default::default(),
                         tasks: vec![],
                         save_compatibility: Default::default(),
+                        production: Default::default(),
                         nodes: vec![Node {
                             text: "你的第一个故事，从这里开始。".into(),
                             ..Node::new("opening".into(), NodeKind::Ending, 0)
@@ -633,45 +656,9 @@ impl Studio {
                             .on_hover_text("导出 Windows x64 游戏目录，内含 Game.exe 和素材")
                             .clicked()
                         {
-                            if self.managed || self.check() {
-                                if let Some(folder) = rfd::FileDialog::new()
-                                    .set_title("选择导出游戏的父目录")
-                                    .pick_folder()
-                                {
-                                    let destination =
-                                        folder.join(format!("opengalgame-game-{}", stamp()));
-                                    if self.managed {
-                                        self.workspace_request = Some(WorkspaceRequest::Export {
-                                            project: Box::new(self.project.clone()),
-                                            base: self.base().to_owned(),
-                                            destination,
-                                        });
-                                        return;
-                                    }
-
-                                    let result = std::env::current_exe()
-                                        .map_err(anyhow::Error::from)
-                                        .and_then(|exe| {
-                                            export_game(
-                                                &self.project,
-                                                self.base(),
-                                                &exe,
-                                                &destination,
-                                            )
-                                        });
-                                    match result {
-                                        Ok(path) => {
-                                            self.export_path = Some(path);
-                                            self.message(Ok(
-                                                "游戏已导出，可打开目录并双击 Game.exe。",
-                                            ));
-                                        }
-                                        Err(e) => self.message(Err::<String, _>(e)),
-                                    }
-                                }
-                            } else {
-                                self.section = Section::Check;
-                            }
+                            self.v5.audit =
+                                opengalgame::assets::audit(&self.project, self.base()).ok();
+                            self.v5.export_preflight = true;
                         }
                         if self.runtime.is_some() {
                             if tool(ui, Icon::Stop, "停止试玩", false).clicked() {
@@ -711,10 +698,14 @@ impl Studio {
                     for (section, name) in [
                         (Section::Script, "剧本"),
                         (Section::Table, "表格"),
+                        (Section::Direction, "演出"),
                         (Section::Characters, "人物"),
                         (Section::Backgrounds, "背景"),
                         (Section::Flags, "变量"),
                         (Section::Audio, "音乐音效"),
+                        (Section::Theme, "主题"),
+                        (Section::Assets, "素材维护"),
+                        (Section::Tests, "分支测试"),
                         (Section::Check, "检查报告"),
                         (Section::Project, "项目设置"),
                     ] {
@@ -818,11 +809,11 @@ impl Studio {
             });
     }
     fn sidebar(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left(egui::Id::new(("scenes", &self.path)))
+        let panel = egui::SidePanel::left(egui::Id::new(("scenes", &self.path)))
             .resizable(true)
-            .default_width(232.)
+            .default_width(self.v5.layout.left_width)
             .min_width(205.)
-            .max_width(360.)
+            .max_width(500.)
             .frame(egui::Frame::new().fill(PANEL).inner_margin(14))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
@@ -1018,9 +1009,10 @@ impl Studio {
                     });
                 });
             });
+        self.v5.layout.left_width = panel.response.rect.width();
     }
     fn inspector(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::right(egui::Id::new(("properties",self.path.clone()))).resizable(true).default_width(332.).min_width(285.).max_width(500.).frame(egui::Frame::new().fill(PANEL).inner_margin(18)).show(ctx,|ui| {
+        let panel = egui::SidePanel::right(egui::Id::new(("properties",self.path.clone()))).resizable(true).default_width(self.v5.layout.right_width).min_width(285.).max_width(900.).frame(egui::Frame::new().fill(PANEL).inner_margin(18)).show(ctx,|ui| {
             ui.horizontal(|ui|{ui.label(RichText::new("编辑场景").size(18.).strong());if let Some(n)=self.project.nodes.get(self.selected){badge(ui,n.kind.label(),kind_color(n.kind));}});
             ui.add_space(8.);
             if self.project.nodes.is_empty(){ui.label("在左侧添加第一个节点。");return;}
@@ -1070,6 +1062,8 @@ impl Studio {
                     },
                     NodeKind::Ending=>{ui.colored_label(GOOD,"这是一个结局，不再继续跳转。");}
                 }
+                if ui.button("演出 / 配音编排").clicked(){self.section=Section::Direction;}
+                if ui.button("展开条件大窗口").clicked(){self.v5.logic_open=true;}
                 self.scene_options(ui);
                 ui.add_space(10.);
                 egui::CollapsingHeader::new("节点标识与操作").id_salt("advanced").show(ui,|ui|{
@@ -1085,6 +1079,7 @@ impl Studio {
                 });
             });});
         });
+        self.v5.layout.right_width = panel.response.rect.width();
     }
     fn texture(&mut self, ctx: &egui::Context, file: &str) -> Option<egui::TextureHandle> {
         let base = self.base().to_owned();
@@ -1116,8 +1111,12 @@ impl Studio {
         let (rect, response) = ui.allocate_exact_size(size, Sense::click());
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, 8, Color32::from_rgb(25, 42, 58));
-        let background = node
-            .background
+        let directed = self.v5.frame.clone();
+        let stage_background = directed
+            .as_ref()
+            .and_then(|f| f.background.clone())
+            .or(node.background.clone());
+        let background = stage_background
             .as_ref()
             .and_then(|id| self.project.backgrounds.iter().find(|b| &b.id == id))
             .map(|b| b.file.clone());
@@ -1127,31 +1126,58 @@ impl Studio {
             paint_cover(&painter, rect, &texture);
         }
         painter.rect_filled(rect, 8, Color32::from_black_alpha(28));
-        let dialogue_h = if node.kind == NodeKind::Choice {
+        let theme = self.game_theme();
+        let dialogue_h = if self.project.production.theme.is_some() {
+            size.y * theme.panel_height
+        } else if node.kind == NodeKind::Choice {
             (size.y * 0.53).clamp(210., 380.)
         } else {
             (size.y * 0.34).clamp(155., 250.)
         };
-        for actor in &node.actors {
-            self.paint_actor(ui, &painter, rect, dialogue_h, actor, slide, false);
+        if let Some(frame) = &directed {
+            for actor in &frame.actors {
+                let speaking = node.character.as_ref() == Some(&actor.actor.character);
+                self.paint_directed_actor(ui, &painter, rect, dialogue_h, actor, speaking);
+            }
+            if frame.shade > 0. {
+                painter.rect_filled(
+                    rect,
+                    8,
+                    Color32::from_black_alpha((frame.shade * 255.) as u8),
+                );
+            }
+        } else {
+            for actor in &node.actors {
+                self.paint_actor(ui, &painter, rect, dialogue_h, actor, slide, false);
+            }
+            if let Some(character) = &node.character
+                && !node.actors.iter().any(|a| &a.character == character)
+            {
+                self.paint_actor(
+                    ui,
+                    &painter,
+                    rect,
+                    dialogue_h,
+                    &Actor {
+                        character: character.clone(),
+                        expression: node.expression.clone(),
+                        side: node.portrait_side,
+                        scale: node.portrait_scale,
+                    },
+                    slide,
+                    true,
+                );
+            }
         }
-        if let Some(character) = &node.character
-            && !node.actors.iter().any(|a| &a.character == character)
-        {
-            self.paint_actor(
-                ui,
-                &painter,
-                rect,
-                dialogue_h,
-                &Actor {
-                    character: character.clone(),
-                    expression: node.expression.clone(),
-                    side: node.portrait_side,
-                    scale: node.portrait_scale,
-                },
-                slide,
-                true,
+        if !self.v5.sequence_complete {
+            painter.text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "演出中…",
+                FontId::proportional(18.),
+                INK,
             );
+            return None;
         }
         painter.text(
             rect.min + Vec2::new(22., 18.),
@@ -1161,27 +1187,51 @@ impl Studio {
             Color32::from_rgb(245, 234, 214),
         );
         let panel = Rect::from_min_max(
-            Pos2::new(rect.left() + 16., rect.bottom() - dialogue_h),
-            rect.right_bottom() - Vec2::splat(16.),
+            Pos2::new(
+                rect.center().x - rect.width() * theme.panel_width / 2.,
+                rect.bottom() - dialogue_h,
+            ),
+            Pos2::new(
+                rect.center().x + rect.width() * theme.panel_width / 2.,
+                rect.bottom() - 16.,
+            ),
         );
-        painter.rect_filled(panel, 8, Color32::from_rgba_unmultiplied(15, 24, 38, 240));
+        painter.rect_filled(
+            panel,
+            theme.radius,
+            Color32::from_rgba_unmultiplied(
+                theme.panel[0],
+                theme.panel[1],
+                theme.panel[2],
+                theme.opacity,
+            ),
+        );
         let mut action = None;
         let count = node.text.chars().count();
         let visible = if !playing || self.advanced.revealed || self.advanced.settings.cps <= 0. {
             count
         } else {
-            (self.advanced.scene_at.elapsed().as_secs_f32() * self.advanced.settings.cps) as usize
+            (self.dialogue_elapsed(&node) * self.advanced.settings.cps) as usize
         };
         self.advanced.text_incomplete = playing && visible < count;
         if self.advanced.text_incomplete {
             ui.ctx().request_repaint_after(Duration::from_millis(25));
         }
         let shown: String = node.text.chars().take(visible.min(count)).collect();
+        let preview_scale = if playing {
+            1.0
+        } else {
+            (size.x / 800.).clamp(0.6, 1.0)
+        };
+        let dialogue_inset = Vec2::new(20., 14.) * preview_scale;
         let mut child = ui.new_child(
             egui::UiBuilder::new()
                 .id_salt("dialogue_overlay")
-                .max_rect(panel.shrink2(Vec2::new(20., 14.))),
+                .max_rect(panel.shrink2(dialogue_inset)),
         );
+        self.game_style(&mut child);
+        child.set_clip_rect(panel.shrink2(dialogue_inset));
+        child.spacing_mut().item_spacing.y *= preview_scale;
         let speaker = node
             .character
             .as_ref()
@@ -1194,19 +1244,43 @@ impl Studio {
                     "旁白"
                 },
             ))
-            .size(self.text_size)
+            .font(FontId::new(
+                theme.name_size * preview_scale,
+                self.v5.font_family.clone(),
+            ))
+            .background_color(if theme.name_box {
+                Color32::from_rgb(theme.choice[0], theme.choice[1], theme.choice[2])
+            } else {
+                Color32::TRANSPARENT
+            })
             .strong()
             .color(
                 speaker
+                    .filter(|_| self.project.production.theme.is_none())
                     .map(|c| Color32::from_rgb(c.color[0], c.color[1], c.color[2]))
-                    .unwrap_or(ACCENT),
+                    .unwrap_or(Color32::from_rgb(
+                        theme.name_color[0],
+                        theme.name_color[1],
+                        theme.name_color[2],
+                    )),
             ),
         );
         egui::ScrollArea::vertical()
             .id_salt(("dialogue", playing, &node.id))
-            .max_height((panel.height() - 65.).max(80.))
+            .max_height(child.available_height().max(12.))
             .show(&mut child, |ui| {
-                ui.label(RichText::new(shown).size(self.text_size).color(INK));
+                ui.label(
+                    RichText::new(shown)
+                        .font(FontId::new(
+                            self.text_size * preview_scale,
+                            self.v5.font_family.clone(),
+                        ))
+                        .color(Color32::from_rgb(
+                            theme.text[0],
+                            theme.text[1],
+                            theme.text[2],
+                        )),
+                );
                 if node.kind == NodeKind::Choice && !self.advanced.text_incomplete {
                     let choices = if playing {
                         self.runtime
@@ -1222,11 +1296,27 @@ impl Studio {
                     for (ordinal, index) in choices.into_iter().enumerate() {
                         if ui
                             .add_sized(
-                                [ui.available_width(), 38.],
-                                egui::Button::new(format!(
-                                    "{}  {}",
-                                    ordinal + 1,
-                                    node.choices[index].text
+                                [ui.available_width(), theme.button_height * preview_scale],
+                                egui::Button::new(
+                                    RichText::new(format!(
+                                        "{}  {}",
+                                        ordinal + 1,
+                                        node.choices[index].text
+                                    ))
+                                    .font(FontId::new(
+                                        theme.choice_size * preview_scale,
+                                        self.v5.font_family.clone(),
+                                    ))
+                                    .color(Color32::from_rgb(
+                                        theme.choice_text[0],
+                                        theme.choice_text[1],
+                                        theme.choice_text[2],
+                                    )),
+                                )
+                                .fill(Color32::from_rgb(
+                                    theme.choice[0],
+                                    theme.choice[1],
+                                    theme.choice[2],
                                 ))
                                 .wrap(),
                             )
@@ -1935,10 +2025,16 @@ impl Studio {
                 .show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         if let Some(r) = &self.runtime {
-                            for step in &r.history {
-                                if let Some(n) = self.project.node(&step.node) {
+                            let ids: Vec<_> = r.history.iter().map(|s| s.node.clone()).collect();
+                            for id in ids {
+                                if let Some(n) = self.project.node(&id).cloned() {
                                     ui.colored_label(ACCENT, &n.title);
                                     ui.label(&n.text);
+                                    if n.direction.voice.is_some()
+                                        && ui.button("重播这句配音").clicked()
+                                    {
+                                        self.replay_voice(&id);
+                                    }
                                     ui.separator();
                                 }
                             }
@@ -1966,6 +2062,7 @@ impl eframe::App for Studio {
             });
         let before = possible_edit.then(|| self.project.clone());
         self.debug_tick(ctx);
+        self.production_tick(ctx);
         self.images.poll(ctx);
         self.advanced_tick(ctx);
         self.skip_history = false;
@@ -1995,6 +2092,10 @@ impl eframe::App for Studio {
             }
         }
         let modal = self.v4.debug.open
+            || self.v5.logic_open
+            || self.v5.repair.is_some()
+            || self.v5.voices.is_some()
+            || self.v5.export_preflight
             || self.v4.table.preview.is_some()
             || self.external_modal
             || self.saves_open
@@ -2067,7 +2168,12 @@ impl eframe::App for Studio {
                     self.auto = false;
                 } else {
                     let seconds = (node.text.chars().count() as f32 / 6.).clamp(3., 60.);
-                    if self.auto_started.elapsed().as_secs_f32() >= seconds {
+                    if self.auto_started.elapsed().as_secs_f32() >= seconds
+                        && self.v5.sequence_complete
+                        && !(self.advanced.settings.wait_voice
+                            && self.advanced.settings.voice > 0.
+                            && self.advanced.sound.voice_playing())
+                    {
                         self.step(Action::Next);
                     }
                     ctx.request_repaint_after(Duration::from_millis(120));
@@ -2110,10 +2216,19 @@ impl eframe::App for Studio {
                 });
         } else {
             self.toolbar(ctx);
-            if !self.advanced.focus && self.section != Section::Table {
+            if !self.advanced.focus
+                && self.v5.layout.outline
+                && !matches!(
+                    self.section,
+                    Section::Table | Section::Theme | Section::Assets | Section::Tests
+                )
+            {
                 self.sidebar(ctx);
             }
-            if self.section == Section::Script && (!self.advanced.focus || self.runtime.is_some()) {
+            if self.section == Section::Script
+                && self.v5.layout.inspector
+                && (!self.advanced.focus || self.runtime.is_some())
+            {
                 self.inspector(ctx);
             }
             egui::CentralPanel::default()
@@ -2130,6 +2245,10 @@ impl eframe::App for Studio {
                             self.runtime.is_none() || self.section == Section::Check,
                             |ui| match self.section {
                                 Section::Table => self.table_editor(ui),
+                                Section::Direction => self.direction_editor(ui),
+                                Section::Theme => self.theme_editor(ui),
+                                Section::Assets => self.assets_editor(ui),
+                                Section::Tests => self.test_editor(ui),
                                 Section::Characters => self.characters(ui),
                                 Section::Backgrounds => self.backgrounds(ui),
                                 Section::Flags => self.flags(ui),
@@ -2144,10 +2263,13 @@ impl eframe::App for Studio {
         }
         self.debugger_window(ctx);
         self.csv_preview(ctx);
+        self.production_dialogs(ctx);
         self.dialogs(ctx);
         self.advanced_dialogs(ctx);
-        if before.is_some() && self.project.uses_typed_logic() {
-            self.project.format_version = 2;
+        if before.is_some() && self.project.uses_production() {
+            self.project.format_version = 3;
+        } else if before.is_some() && self.project.uses_typed_logic() {
+            self.project.format_version = self.project.format_version.max(2);
         }
         if let Some(before) = before
             && self.project != before

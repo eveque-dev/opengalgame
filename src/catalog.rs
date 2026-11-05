@@ -187,6 +187,7 @@ pub fn template_project(title: &str, template: ProjectTemplate) -> Project {
         presentation: Default::default(),
         tasks: vec![],
         save_compatibility: Default::default(),
+        production: Default::default(),
     };
     crate::model::arrange_nodes(&mut p);
     p

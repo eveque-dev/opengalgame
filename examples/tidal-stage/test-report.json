@@ -1,0 +1,466 @@
+{
+  "project_id": "opengalgame-tidal-stage-v5",
+  "fingerprint": "7a5f855111e0039346f9db8e460058f7c2495676b30954c312f025a0192ee0c3",
+  "states": 26,
+  "limit": 8192,
+  "truncated": false,
+  "nodes": [
+    "archive",
+    "dawn",
+    "decision",
+    "ending_home",
+    "ending_promise",
+    "ending_sea",
+    "ending_truth",
+    "entrance",
+    "letter",
+    "meeting",
+    "opening",
+    "repair",
+    "reply"
+  ],
+  "choices": [
+    [
+      "decision",
+      0
+    ],
+    [
+      "decision",
+      1
+    ],
+    [
+      "decision",
+      2
+    ],
+    [
+      "decision",
+      3
+    ],
+    [
+      "letter",
+      0
+    ],
+    [
+      "letter",
+      1
+    ],
+    [
+      "meeting",
+      0
+    ],
+    [
+      "meeting",
+      1
+    ]
+  ],
+  "endings": [
+    "ending_home",
+    "ending_promise",
+    "ending_sea",
+    "ending_truth"
+  ],
+  "uncovered_nodes": [],
+  "uncovered_choices": [],
+  "uncovered_endings": [],
+  "errors": [],
+  "cases": [
+    {
+      "name": "自动路线 · 结局 · 灯火常亮",
+      "passed": true,
+      "message": "节点与变量符合预期"
+    },
+    {
+      "name": "自动路线 · 结局 · 下一座港口",
+      "passed": true,
+      "message": "节点与变量符合预期"
+    },
+    {
+      "name": "自动路线 · 结局 · 明天的座位",
+      "passed": true,
+      "message": "节点与变量符合预期"
+    },
+    {
+      "name": "自动路线 · 结局 · 有名字的回声",
+      "passed": true,
+      "message": "节点与变量符合预期"
+    }
+  ],
+  "routes": [
+    {
+      "from_start": true,
+      "name": "自动路线 · 结局 · 灯火常亮",
+      "initial": {
+        "current": {
+          "node": "opening",
+          "flags": {},
+          "variables": {
+            "affinity": 0,
+            "clues": 1,
+            "promised": false,
+            "visits": 1
+          },
+          "stage": {
+            "actors": [],
+            "background": "bay",
+            "music": {
+              "audio": "music_harbor",
+              "volume": 1.0,
+              "looped": true,
+              "fade": 0.0
+            },
+            "ambience": {
+              "audio": "amb_waves",
+              "volume": 0.45,
+              "looped": true,
+              "fade": 1.0
+            },
+            "music_fade": 0.0,
+            "ambience_fade": 1.0
+          },
+          "scene_start": {
+            "actors": [],
+            "background": "bay",
+            "music": {
+              "audio": "music_harbor",
+              "volume": 1.0,
+              "looped": true,
+              "fade": 0.0
+            },
+            "ambience": {
+              "audio": "amb_waves",
+              "volume": 0.45,
+              "looped": true,
+              "fade": 1.0
+            },
+            "music_fade": 0.0,
+            "ambience_fade": 1.0
+          }
+        },
+        "history": []
+      },
+      "commands": [
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 0
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 0
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 0
+        }
+      ],
+      "expected_node": "ending_home",
+      "expected_values": {
+        "affinity": 70,
+        "clues": 1,
+        "promised": false,
+        "visits": 1
+      }
+    },
+    {
+      "from_start": true,
+      "name": "自动路线 · 结局 · 下一座港口",
+      "initial": {
+        "current": {
+          "node": "opening",
+          "flags": {},
+          "variables": {
+            "affinity": 0,
+            "clues": 1,
+            "promised": false,
+            "visits": 1
+          },
+          "stage": {
+            "actors": [],
+            "background": "bay",
+            "music": {
+              "audio": "music_harbor",
+              "volume": 1.0,
+              "looped": true,
+              "fade": 0.0
+            },
+            "ambience": {
+              "audio": "amb_waves",
+              "volume": 0.45,
+              "looped": true,
+              "fade": 1.0
+            },
+            "music_fade": 0.0,
+            "ambience_fade": 1.0
+          },
+          "scene_start": {
+            "actors": [],
+            "background": "bay",
+            "music": {
+              "audio": "music_harbor",
+              "volume": 1.0,
+              "looped": true,
+              "fade": 0.0
+            },
+            "ambience": {
+              "audio": "amb_waves",
+              "volume": 0.45,
+              "looped": true,
+              "fade": 1.0
+            },
+            "music_fade": 0.0,
+            "ambience_fade": 1.0
+          }
+        },
+        "history": []
+      },
+      "commands": [
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 0
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 0
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 3
+        }
+      ],
+      "expected_node": "ending_sea",
+      "expected_values": {
+        "affinity": 70,
+        "clues": 1,
+        "promised": false,
+        "visits": 1
+      }
+    },
+    {
+      "from_start": true,
+      "name": "自动路线 · 结局 · 明天的座位",
+      "initial": {
+        "current": {
+          "node": "opening",
+          "flags": {},
+          "variables": {
+            "affinity": 0,
+            "clues": 1,
+            "promised": false,
+            "visits": 1
+          },
+          "stage": {
+            "actors": [],
+            "background": "bay",
+            "music": {
+              "audio": "music_harbor",
+              "volume": 1.0,
+              "looped": true,
+              "fade": 0.0
+            },
+            "ambience": {
+              "audio": "amb_waves",
+              "volume": 0.45,
+              "looped": true,
+              "fade": 1.0
+            },
+            "music_fade": 0.0,
+            "ambience_fade": 1.0
+          },
+          "scene_start": {
+            "actors": [],
+            "background": "bay",
+            "music": {
+              "audio": "music_harbor",
+              "volume": 1.0,
+              "looped": true,
+              "fade": 0.0
+            },
+            "ambience": {
+              "audio": "amb_waves",
+              "volume": 0.45,
+              "looped": true,
+              "fade": 1.0
+            },
+            "music_fade": 0.0,
+            "ambience_fade": 1.0
+          }
+        },
+        "history": []
+      },
+      "commands": [
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 0
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 1
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 2
+        }
+      ],
+      "expected_node": "ending_promise",
+      "expected_values": {
+        "affinity": 50,
+        "clues": 2,
+        "promised": true,
+        "visits": 1
+      }
+    },
+    {
+      "from_start": true,
+      "name": "自动路线 · 结局 · 有名字的回声",
+      "initial": {
+        "current": {
+          "node": "opening",
+          "flags": {},
+          "variables": {
+            "affinity": 0,
+            "clues": 1,
+            "promised": false,
+            "visits": 1
+          },
+          "stage": {
+            "actors": [],
+            "background": "bay",
+            "music": {
+              "audio": "music_harbor",
+              "volume": 1.0,
+              "looped": true,
+              "fade": 0.0
+            },
+            "ambience": {
+              "audio": "amb_waves",
+              "volume": 0.45,
+              "looped": true,
+              "fade": 1.0
+            },
+            "music_fade": 0.0,
+            "ambience_fade": 1.0
+          },
+          "scene_start": {
+            "actors": [],
+            "background": "bay",
+            "music": {
+              "audio": "music_harbor",
+              "volume": 1.0,
+              "looped": true,
+              "fade": 0.0
+            },
+            "ambience": {
+              "audio": "amb_waves",
+              "volume": 0.45,
+              "looped": true,
+              "fade": 1.0
+            },
+            "music_fade": 0.0,
+            "ambience_fade": 1.0
+          }
+        },
+        "history": []
+      },
+      "commands": [
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 1
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 0
+        },
+        {
+          "kind": "advance",
+          "choice": null
+        },
+        {
+          "kind": "advance",
+          "choice": 1
+        }
+      ],
+      "expected_node": "ending_truth",
+      "expected_values": {
+        "affinity": 20,
+        "clues": 4,
+        "promised": false,
+        "visits": 1
+      }
+    }
+  ]
+}

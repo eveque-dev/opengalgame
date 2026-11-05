@@ -27,6 +27,8 @@ pub struct Project {
     pub tasks: Vec<CreativeTask>,
     #[serde(default)]
     pub save_compatibility: crate::compatibility::SavePolicy,
+    #[serde(default, skip_serializing_if = "crate::production::is_default")]
+    pub production: crate::production::Production,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
@@ -179,6 +181,8 @@ pub struct Node {
     pub bgm: Option<String>,
     #[serde(default)]
     pub sound: Option<String>,
+    #[serde(default, skip_serializing_if = "crate::production::is_default")]
+    pub direction: crate::production::Direction,
 }
 impl Node {
     pub fn new(id: String, kind: NodeKind, index: usize) -> Self {
@@ -200,6 +204,7 @@ impl Node {
             transition: Transition::None,
             bgm: None,
             sound: None,
+            direction: Default::default(),
         }
     }
     pub fn targets(&self) -> Vec<&str> {
@@ -240,6 +245,10 @@ pub struct Issue {
     pub message: String,
 }
 impl Project {
+    pub fn uses_production(&self) -> bool {
+        self.production != Default::default()
+            || self.nodes.iter().any(|n| n.direction != Default::default())
+    }
     pub fn uses_typed_logic(&self) -> bool {
         !self.variables.is_empty()
             || self.nodes.iter().any(|n| {
@@ -270,6 +279,23 @@ impl Project {
                     || n.background.as_deref() == Some(id)
                     || n.bgm.as_deref() == Some(id)
                     || n.sound.as_deref() == Some(id)
+                    || n.direction.voice.as_deref() == Some(id)
+                    || n.direction
+                        .audio
+                        .iter()
+                        .any(|a| a.audio.as_deref() == Some(id))
+                    || n.direction.actions.iter().any(|a| match a {
+                        crate::production::StageAction::Show { character, .. }
+                        | crate::production::StageAction::Hide { character, .. }
+                        | crate::production::StageAction::Move { character, .. }
+                        | crate::production::StageAction::Expression { character, .. } => {
+                            character == id
+                        }
+                        crate::production::StageAction::Background { background, .. } => {
+                            background == id
+                        }
+                        _ => false,
+                    })
                     || n.actors.iter().any(|a| a.character == id)
             })
             .count()
@@ -325,6 +351,24 @@ impl Project {
         self.save_compatibility
             .node_aliases
             .insert(old.into(), new.into());
+        for case in &mut self.production.cases {
+            if case.expected_node == old {
+                case.expected_node = new.into();
+            }
+            for step in std::iter::once(&mut case.initial.current).chain(&mut case.initial.history)
+            {
+                if step.node == old {
+                    step.node = new.into();
+                }
+            }
+            for command in &mut case.commands {
+                if let crate::debugger::Command::Jump { node } = command
+                    && node == old
+                {
+                    *node = new.into();
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -361,7 +405,7 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
             message,
         })
     };
-    if ![1, 2].contains(&p.format_version) {
+    if ![1, 2, 3].contains(&p.format_version) {
         push(Severity::Error, None, "不支持的项目格式版本".into());
     }
     if p.id.trim().is_empty() || p.title.trim().is_empty() {
@@ -369,6 +413,39 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
     }
     if p.nodes.is_empty() {
         push(Severity::Error, None, "至少需要一个剧情节点".into());
+    }
+    if p.uses_production() && p.format_version < 3 {
+        push(
+            Severity::Error,
+            None,
+            "演出、配音、主题和节点赋值需要项目格式 3".into(),
+        );
+    }
+    if let Some(theme) = &p.production.theme
+        && let Err(e) = theme.validate()
+    {
+        push(Severity::Error, None, e.to_string());
+    }
+    if let Some(base) = base
+        && let Some(file) = p
+            .production
+            .theme
+            .as_ref()
+            .and_then(|t| t.font_file.as_ref())
+    {
+        let result = safe_asset(base, file).and_then(|path| {
+            let bytes = std::fs::read(path)?;
+            anyhow::ensure!(bytes.len() <= 30 * 1024 * 1024, "字体超过 30 MB");
+            ab_glyph::FontRef::try_from_slice(&bytes)
+                .map_err(|_| anyhow::anyhow!("字体无法解析"))?;
+            Ok(())
+        });
+        if let Err(e) = result {
+            push(Severity::Error, None, format!("游戏字体：{e}"));
+        }
+    }
+    if p.production.cases.len() > 256 {
+        push(Severity::Error, None, "最多保存 256 个测试用例".into());
     }
     let has_logic = !p.variables.is_empty()
         || p.nodes.iter().any(|n| {
@@ -451,6 +528,9 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
         push(Severity::Error, None, "显示参数超出有效范围".into());
     }
     for n in &p.nodes {
+        if let Err(e) = crate::production::validate_direction(p, n) {
+            push(Severity::Error, Some(&n.id), e.to_string());
+        }
         for audio in [&n.bgm, &n.sound].into_iter().flatten() {
             if audio != "$stop" && !audio_ids.contains(audio.as_str()) {
                 push(Severity::Error, Some(&n.id), format!("音轨 {audio} 不存在"));
@@ -604,7 +684,15 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
     // Bound state exploration using the exact runtime evaluator and transactional effects.
     if !issues.iter().any(|i| i.severity == Severity::Error) {
         let mut states = HashSet::new();
-        let mut pending = VecDeque::from([crate::runtime::Runtime::new(p).current]);
+        let initial = crate::runtime::Runtime::new(p);
+        if let Some(error) = &initial.error {
+            issues.push(Issue {
+                severity: Severity::Error,
+                node: Some(p.start.clone()),
+                message: error.clone(),
+            });
+        }
+        let mut pending = VecDeque::from([initial.current]);
         while let Some(step) = pending.pop_front() {
             if states.len() >= 8192 {
                 issues.push(Issue {
@@ -627,6 +715,7 @@ pub fn validate(p: &Project, base: Option<&Path>) -> Vec<Issue> {
             let mut runtime = crate::runtime::Runtime {
                 current: step,
                 history: vec![],
+                error: None,
             };
             let choices = if node.kind == NodeKind::Choice {
                 runtime

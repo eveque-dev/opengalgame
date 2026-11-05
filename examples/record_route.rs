@@ -27,12 +27,25 @@ fn main() -> anyhow::Result<()> {
             break;
         }
         let command = Command::Advance {
-            choice: (n.kind == NodeKind::Choice).then_some(0),
+            choice: if n.kind == NodeKind::Choice {
+                Some(
+                    *runtime
+                        .visible_choices(&p)
+                        .first()
+                        .ok_or_else(|| anyhow::anyhow!("没有可见选项"))?,
+                )
+            } else {
+                None
+            },
         };
         command.apply(&p, &mut runtime)?;
         route.record(command, &runtime)?;
     }
-    assert_eq!(runtime.current.node, "ending_promise");
+    anyhow::ensure!(
+        p.node(&runtime.current.node)
+            .is_some_and(|n| n.kind == NodeKind::Ending),
+        "100 步内没有到达结局"
+    );
     assert_eq!(route.replay(&p)?, runtime);
     write_json(&output, &route)?;
     println!(

@@ -27,6 +27,10 @@ pub(super) struct PlayerSettings {
     pub cps: f32,
     pub music: f32,
     pub effects: f32,
+    pub voice: f32,
+    pub ambience: f32,
+    pub wait_voice: bool,
+    pub duck_voice: bool,
     pub reduced_motion: bool,
 }
 impl Default for PlayerSettings {
@@ -36,6 +40,10 @@ impl Default for PlayerSettings {
             cps: 0.,
             music: 0.35,
             effects: 0.65,
+            voice: 1.,
+            ambience: 0.4,
+            wait_voice: true,
+            duck_voice: true,
             reduced_motion: false,
         }
     }
@@ -168,59 +176,28 @@ impl Studio {
     ) -> (Node, f32, f32) {
         let depth = self.runtime.as_ref().map(|r| r.history.len()).unwrap_or(0);
         let key = format!("{playing}|{}|{depth}", node.id);
-        if self.advanced.scene_key != key {
+        let new_scene = self.advanced.scene_key != key;
+        if new_scene {
             self.advanced.previous = self.advanced.latest.take();
             self.advanced.latest = Some(node.clone());
             self.advanced.scene_key = key;
             self.advanced.scene_at = Instant::now();
-            self.advanced.revealed = false;
+            self.advanced.revealed = self.v5.instant_scene;
             self.advanced.text_incomplete = false;
-            if playing && !self.advanced.settings.reduced_motion {
-                ctx.request_repaint();
-            }
-            if playing
-                && self.advanced.sound.error.is_none()
-                && let Some(id) = &node.sound
-                && let Some(file) = self
-                    .project
-                    .audio
-                    .iter()
-                    .find(|a| &a.id == id)
-                    .map(|a| a.file.clone())
-            {
-                let result = safe_asset(self.base(), &file).and_then(|path| {
-                    self.advanced
-                        .sound
-                        .effect(&path, self.advanced.settings.effects)
-                });
-                if let Err(e) = result {
-                    self.advanced.sound.error = Some(e.to_string());
-                }
-            }
         }
-        if playing && self.advanced.sound.error.is_none() {
-            let id = node.bgm.as_ref().or(self.project.presentation.bgm.as_ref());
-            let file = id
-                .filter(|id| id.as_str() != "$stop")
-                .and_then(|id| self.project.audio.iter().find(|a| &a.id == id))
-                .map(|a| a.file.clone());
-            let path = file.as_ref().and_then(|f| safe_asset(self.base(), f).ok());
-            if let Err(e) = self
-                .advanced
-                .sound
-                .music(path.as_deref(), self.advanced.settings.music)
-            {
-                self.advanced.sound.error = Some(e.to_string());
-                self.status = "音频设备不可用，故事仍可继续，可在设置中重试。".into();
-            }
-        }
+        self.prepare_production(node, playing, new_scene, ctx);
         let duration = self.project.presentation.transition_seconds;
-        let t = if !playing || self.advanced.settings.reduced_motion || duration <= 0. {
+        let t = if !playing
+            || self.v5.instant_scene
+            || self.advanced.settings.reduced_motion
+            || duration <= 0.
+        {
             1.
         } else {
             (self.advanced.scene_at.elapsed().as_secs_f32() / duration).clamp(0., 1.)
         };
-        self.advanced.transitioning = t < 1. && node.transition != Transition::None;
+        self.advanced.transitioning =
+            (t < 1. && node.transition != Transition::None) || !self.v5.sequence_complete;
         if self.advanced.transitioning {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
@@ -302,20 +279,46 @@ impl Studio {
     }
     pub(super) fn save_browser(&mut self, ctx: &egui::Context) {
         let mut open = true;
-        egui::Window::new("存档与读取").open(&mut open).default_width(650.).default_height(580.).show(ctx,|ui|{
-            ui.label("存档保存在当前 Windows 用户目录。手动存档后会自动生成画面缩略图。");
-            egui::ScrollArea::vertical().show(ui,|ui|{for slot in["auto","slot-1","slot-2","slot-3"]{ui.push_id(slot,|ui|{
-                let dir=save_directory(&self.project.id);let file=dir.join(format!("{slot}.json"));let save:Option<SaveGame>=std::fs::read(&file).ok().and_then(|b|serde_json::from_slice(&b).ok());
-                egui::Frame::new().fill(BASE).inner_margin(12).corner_radius(6).show(ui,|ui|{ui.horizontal(|ui|{
-                    let preview=dir.join(format!("{slot}.png"));if preview.is_file(){let revision=std::fs::metadata(&preview).and_then(|m|m.modified()).ok();let key=format!("save:{}:{revision:?}",preview.display());if !self.textures.contains_key(&key){let tex=image::open(&preview).map(|i|{let rgba=i.into_rgba8();ctx.load_texture(&key,egui::ColorImage::from_rgba_unmultiplied([rgba.width()as usize,rgba.height()as usize],rgba.as_raw()),egui::TextureOptions::LINEAR)}).map_err(|e|e.to_string());self.textures.insert(key.clone(),tex);}
-if let Some(Ok(tex))=self.textures.get(&key){ui.add(egui::Image::new((tex.id(),Vec2::new(180.,110.))).fit_to_exact_size(Vec2::new(180.,110.)));}}
-                    ui.vertical(|ui|{ui.label(RichText::new(if slot=="auto"{"自动存档"}else{slot}).color(ACCENT));if let Some(save)=&save{ui.label(&save.node_title);ui.label(RichText::new(format!("经过 {} 段 · {}",save.runtime.history.len(),save_age(save.saved_at))).small().color(MUTED));}else{ui.label("空白存档");}
-                        ui.horizontal(|ui|{if slot!="auto"&&ui.add_enabled(self.runtime.is_some(),egui::Button::new(if save.is_some(){"覆盖此格"}else{"保存到此格"})).clicked(){self.save_slot(slot);}
-if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.load_slot(slot);}});
+        let theme = self.game_theme();
+        let columns = theme.save_columns;
+        egui::Window::new("存档与读取").open(&mut open).constrain_to(ctx.content_rect())
+            .default_width(if columns>1{960.}else{650.}).default_height(580.)
+            .frame(egui::Frame::window(&ctx.style()).fill(Color32::from_rgb(theme.menu[0],theme.menu[1],theme.menu[2])))
+            .show(ctx,|ui|{
+                self.game_style(ui);
+                ui.label("存档保存在当前 Windows 用户目录；手动存档附画面缩略图。");
+                egui::ScrollArea::vertical().show(ui,|ui|{
+                    let width=((ui.available_width()-12.*columns.saturating_sub(1) as f32)/columns as f32).max(190.);
+                    egui::Grid::new("save_grid").num_columns(columns).spacing(Vec2::new(12.,12.)).show(ui,|ui|{
+                        for(i,slot)in["auto","slot-1","slot-2","slot-3"].into_iter().enumerate(){
+                            ui.push_id(slot,|ui|{
+                                egui::Frame::new().fill(Color32::from_rgb(theme.panel[0],theme.panel[1],theme.panel[2])).inner_margin(12).corner_radius(theme.radius).show(ui,|ui|{
+                                    ui.set_min_width(width-24.);ui.set_max_width(width-24.);
+                                    let dir=save_directory(&self.project.id);
+                                    let save:Option<SaveGame>=std::fs::read(dir.join(format!("{slot}.json"))).ok().and_then(|b|serde_json::from_slice(&b).ok());
+                                    let preview=dir.join(format!("{slot}.png"));
+                                    if preview.is_file(){
+                                        let revision=std::fs::metadata(&preview).and_then(|m|m.modified()).ok();
+                                        let key=format!("save:{}:{revision:?}",preview.display());
+                                        if !self.textures.contains_key(&key){
+                                            let texture=image::open(&preview).map(|image|{let rgba=image.into_rgba8();ctx.load_texture(&key,egui::ColorImage::from_rgba_unmultiplied([rgba.width()as usize,rgba.height()as usize],rgba.as_raw()),egui::TextureOptions::LINEAR)}).map_err(|e|e.to_string());
+                                            self.textures.insert(key.clone(),texture);
+                                        }
+                                        if let Some(Ok(texture))=self.textures.get(&key){let w=(width-24.).min(240.);ui.image((texture.id(),Vec2::new(w,w*0.61)));}
+                                    }
+                                    ui.label(RichText::new(if slot=="auto"{"自动存档"}else{slot}).color(Color32::from_rgb(theme.name_color[0],theme.name_color[1],theme.name_color[2])));
+                                    if let Some(save)=&save{ui.label(&save.node_title);ui.label(RichText::new(format!("经过 {} 段 · {}",save.runtime.history.len(),save_age(save.saved_at))).small());}else{ui.label("空白存档");}
+                                    ui.horizontal_wrapped(|ui|{
+                                        if slot!="auto" && ui.add_enabled(self.runtime.is_some(),egui::Button::new(if save.is_some(){"覆盖此格"}else{"保存到此格"})).clicked(){self.save_slot(slot);}
+                                        if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.load_slot(slot);}
+                                    });
+                                });
+                            });
+                            if(i+1)%columns==0{ui.end_row();}
+                        }
                     });
-                });});
-            });}});
-        });
+                });
+            });
         self.saves_open &= open;
     }
     pub(super) fn graph_ports(
@@ -858,6 +861,7 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
         });
     }
     pub(super) fn title_ui(&mut self, ui: &mut egui::Ui) {
+        let theme = self.game_theme();
         if self.advanced.sound.error.is_none()
             && let Some(file) = self
                 .project
@@ -867,18 +871,19 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
                 .and_then(|id| self.project.audio.iter().find(|a| &a.id == id))
                 .map(|a| a.file.clone())
         {
-            let result = safe_asset(self.base(), &file).and_then(|path| {
-                self.advanced
-                    .sound
-                    .music(Some(&path), self.advanced.settings.music)
-            });
+            let result = safe_asset(self.base(), &file)
+                .and_then(|path| self.advanced.sound.music(Some(&path), 1.));
             if let Err(e) = result {
                 self.advanced.sound.error = Some(e.to_string());
             }
         }
         let rect = ui.max_rect();
         let p = ui.painter_at(rect);
-        p.rect_filled(rect, 0, BASE);
+        p.rect_filled(
+            rect,
+            0,
+            Color32::from_rgb(theme.menu[0], theme.menu[1], theme.menu[2]),
+        );
         let cover = self
             .project
             .presentation
@@ -890,22 +895,43 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
         {
             paint_cover(&p, rect, &texture);
         }
-        p.rect_filled(rect, 0, Color32::from_black_alpha(135));
+        p.rect_filled(
+            rect,
+            0,
+            Color32::from_rgba_unmultiplied(theme.menu[0], theme.menu[1], theme.menu[2], 135),
+        );
         let accent = Color32::from_rgb(
             self.project.presentation.accent[0],
             self.project.presentation.accent[1],
             self.project.presentation.accent[2],
         );
+        let panel_width = (rect.width() * 0.65).min(650.);
+        let x = match theme.menu_position {
+            PortraitSide::Left => rect.width() * 0.09,
+            PortraitSide::Center => (rect.width() - panel_width) / 2.,
+            PortraitSide::Right => rect.width() - panel_width - rect.width() * 0.09,
+        };
         let panel = Rect::from_min_size(
-            rect.min + Vec2::new(rect.width() * 0.09, rect.height() * 0.18),
+            rect.min + Vec2::new(x, rect.height() * 0.18),
             Vec2::new((rect.width() * 0.65).min(650.), rect.height() * 0.75),
         );
-        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(panel));
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(panel).layout(
+            egui::Layout::top_down(match theme.menu_position {
+                PortraitSide::Left => egui::Align::Min,
+                PortraitSide::Center => egui::Align::Center,
+                PortraitSide::Right => egui::Align::Max,
+            }),
+        ));
+        self.game_style(&mut child);
         child.label(
             RichText::new(&self.project.title)
-                .size(46.)
+                .font(FontId::new(46., self.v5.font_family.clone()))
                 .strong()
-                .color(INK),
+                .color(Color32::from_rgb(
+                    theme.text[0],
+                    theme.text[1],
+                    theme.text[2],
+                )),
         );
         child.label(RichText::new(&self.project.author).color(accent));
         child.add_space(35.);
@@ -913,7 +939,7 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
             .add_sized([250., 46.], egui::Button::new("开始新的故事").fill(accent))
             .clicked()
         {
-            self.runtime = Some(Runtime::new(&self.project));
+            self.begin(false);
             self.advanced.title_screen = false;
             self.advanced.scene_key.clear();
         }
@@ -974,11 +1000,28 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
                         egui::Slider::new(&mut self.advanced.settings.effects, 0.0..=1.0)
                             .text("音效音量"),
                     );
+                    ui.add(
+                        egui::Slider::new(&mut self.advanced.settings.voice, 0.0..=1.0)
+                            .text("配音音量"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut self.advanced.settings.ambience, 0.0..=1.0)
+                            .text("环境音音量"),
+                    );
+                    ui.checkbox(
+                        &mut self.advanced.settings.wait_voice,
+                        "自动阅读等待配音结束",
+                    );
+                    ui.checkbox(
+                        &mut self.advanced.settings.duck_voice,
+                        "配音期间降低背景音乐",
+                    );
                     ui.checkbox(&mut self.advanced.settings.reduced_motion, "减少动态效果");
                     if let Some(error) = &self.advanced.sound.error {
                         ui.colored_label(BAD, error);
                         if ui.button("重试音频设备").clicked() {
-                            self.advanced.sound.error = None;
+                            self.advanced.sound = Default::default();
+                            self.advanced.scene_key.clear();
                         }
                     }
                     self.advanced
@@ -1097,6 +1140,7 @@ if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.loa
     }
     pub(super) fn advanced_toolbar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_wrapped(|ui| {
+            self.layout_menu(ui);
             if ui
                 .add_enabled(self.runtime.is_none(), egui::Button::new("批量导入对白"))
                 .clicked()

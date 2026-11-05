@@ -198,7 +198,7 @@ fn new_save_roundtrip_defaults_and_type_changes() {
     let mut p = demo();
     let r = Runtime::at(&p, "meeting");
     let save = r.save(&p);
-    assert_eq!(save.version, 3);
+    assert_eq!(save.version, 4);
     p.variables.insert("new_count".into(), Value::Number(8));
     let (restored, report) = compatibility::load(&p, save.clone()).unwrap();
     assert_eq!(get(&restored.current, "new_count"), Some(Value::Number(8)));

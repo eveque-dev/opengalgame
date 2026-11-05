@@ -55,3 +55,18 @@ python tools/package_windows.py
 0.4 逻辑项目使用格式 2，保留格式 1 的旧布尔变量。`variables` 存储布尔/整数/文本初始值，选择的 `when` 存储 Compare/All/Any 条件，`effects` 存储 Set/Add 操作。旧 `condition`、`set_flag` 保留。新存档格式 3，带变量类型声明；路线文件使用独立版本与严格工程指纹。
 
 命令行复现：`opengalgame.exe --replay project.json route.json`，失败返回非零，不覆盖文件。
+
+
+## 0.5 制作与运行
+
+`production.rs` 定义可序列化演出动作、音轨状态、主题和确定性舞台采样；`runtime::Step` 保留动作前后的舞台快照。进入／离开赋值与选择、目标进入操作事务执行，回退与读档恢复已提交状态。
+
+`testing.rs` 使用相同运行内核做有界状态探索和保存用例重跑；`assets.rs` 处理引用审计、批量预览修复、标识迁移、字体与配音匹配。`sound.rs` 区分音乐、环境音、配音、叠加音效，渐变包络可独立于声卡测试。
+
+编辑器新增 `direction_ui.rs`、`production_ui.rs`、`production_player.rs`、`v5.rs`；演出、主题和玩家共用舞台。布局保存在本机，测试任务在后台执行。工程格式 3、新存档版本 4；旧新增字段默认跳过空值，保留既有指纹和固定旧存档测试。
+
+```powershell
+opengalgame.exe --test examples/tidal-stage/project.json reports/test-report.json
+```
+
+完整包内四个样例，打包时校验两个固定路线，并在原工程与媒体重定位后的独立游戏上运行新样片的回归用例。重新生成样片素材使用 `tools/make_production_demo.py`，配音使用 Windows 的 `tools/make_demo_voices.ps1`，然后运行 `cargo run --example production_demo` 生成用例与路线；发布包内已包含这些素材，运行无需生成工具。

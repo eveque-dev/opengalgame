@@ -26,6 +26,34 @@ fn run() -> Result<()> {
     let exe = std::env::current_exe()?;
     let directory = exe.parent().context("无法确定程序位置")?;
     let bundled = directory.join("game.json");
+    if args.first().map(String::as_str) == Some("--test") {
+        let path = PathBuf::from(
+            args.get(1)
+                .context("--test 需要 project.json report.json")?,
+        );
+        let output = PathBuf::from(args.get(2).context("--test 需要报告输出路径")?);
+        let p = read_project(&path)?;
+        let errors: Vec<_> = validate(&p, path.parent())
+            .into_iter()
+            .filter(|i| i.severity == Severity::Error)
+            .map(|i| i.message)
+            .collect();
+        ensure!(errors.is_empty(), "项目校验失败：{}", errors.join("；"));
+        let report = opengalgame::testing::run(&p, 8192);
+        write_json(&output, &report)?;
+        ensure!(
+            report.passed(),
+            "回归测试或分支执行失败，详见 {}",
+            output.display()
+        );
+        println!(
+            "PASS: {} states, {} endings, {} cases",
+            report.states,
+            report.endings.len(),
+            report.cases.len()
+        );
+        return Ok(());
+    }
     if args.first().map(String::as_str) == Some("--replay") {
         let path = PathBuf::from(
             args.get(1)

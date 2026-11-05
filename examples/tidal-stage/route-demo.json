@@ -1,0 +1,768 @@
+{
+  "version": 1,
+  "project_id": "opengalgame-tidal-stage-v5",
+  "fingerprint": "7a5f855111e0039346f9db8e460058f7c2495676b30954c312f025a0192ee0c3",
+  "initial": {
+    "version": 4,
+    "project_id": "opengalgame-tidal-stage-v5",
+    "fingerprint": "7a5f855111e0039346f9db8e460058f7c2495676b30954c312f025a0192ee0c3",
+    "runtime": {
+      "current": {
+        "node": "opening",
+        "flags": {},
+        "variables": {
+          "affinity": 0,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        },
+        "stage": {
+          "actors": [],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        },
+        "scene_start": {
+          "actors": [],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        }
+      },
+      "history": []
+    },
+    "saved_at": 1793871513472,
+    "node_title": "最后一班潮汐",
+    "compatibility": {
+      "nodes": {
+        "opening": {
+          "kind": "dialogue",
+          "next": "entrance",
+          "choices": [],
+          "enter": [
+            {
+              "kind": "add",
+              "variable": "visits",
+              "amount": 1
+            },
+            {
+              "kind": "add",
+              "variable": "clues",
+              "amount": 1
+            }
+          ]
+        }
+      },
+      "variables": {
+        "affinity": "number",
+        "clues": "number",
+        "promised": "bool",
+        "visits": "number"
+      }
+    }
+  },
+  "commands": [
+    {
+      "kind": "advance",
+      "choice": null
+    },
+    {
+      "kind": "advance",
+      "choice": null
+    },
+    {
+      "kind": "advance",
+      "choice": 0
+    },
+    {
+      "kind": "advance",
+      "choice": null
+    },
+    {
+      "kind": "advance",
+      "choice": null
+    },
+    {
+      "kind": "advance",
+      "choice": 0
+    },
+    {
+      "kind": "advance",
+      "choice": null
+    },
+    {
+      "kind": "advance",
+      "choice": 0
+    }
+  ],
+  "expected": {
+    "current": {
+      "node": "ending_home",
+      "flags": {},
+      "variables": {
+        "affinity": 70,
+        "clues": 1,
+        "promised": false,
+        "visits": 1
+      },
+      "stage": {
+        "actors": [
+          {
+            "character": "qiao",
+            "expression": null,
+            "side": "right",
+            "scale": 1.0
+          },
+          {
+            "character": "lin",
+            "expression": null,
+            "side": "center",
+            "scale": 1.0
+          },
+          {
+            "character": "cen",
+            "expression": null,
+            "side": "left",
+            "scale": 1.0
+          }
+        ],
+        "background": "bay",
+        "music": {
+          "audio": "music_harbor",
+          "volume": 1.0,
+          "looped": true,
+          "fade": 0.0
+        },
+        "ambience": null,
+        "music_fade": 0.0,
+        "ambience_fade": 1.2
+      },
+      "scene_start": {
+        "actors": [
+          {
+            "character": "qiao",
+            "expression": null,
+            "side": "right",
+            "scale": 1.0
+          },
+          {
+            "character": "lin",
+            "expression": null,
+            "side": "center",
+            "scale": 1.0
+          },
+          {
+            "character": "cen",
+            "expression": null,
+            "side": "left",
+            "scale": 1.0
+          }
+        ],
+        "background": "bay",
+        "music": {
+          "audio": "music_harbor",
+          "volume": 1.0,
+          "looped": true,
+          "fade": 0.0
+        },
+        "ambience": null,
+        "music_fade": 0.0,
+        "ambience_fade": 1.2
+      }
+    },
+    "history": [
+      {
+        "node": "opening",
+        "flags": {},
+        "variables": {
+          "affinity": 0,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        },
+        "stage": {
+          "actors": [],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        },
+        "scene_start": {
+          "actors": [],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        }
+      },
+      {
+        "node": "entrance",
+        "flags": {},
+        "variables": {
+          "affinity": 0,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        },
+        "stage": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": "微笑",
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "right",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        },
+        "scene_start": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": null,
+              "side": "right",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        }
+      },
+      {
+        "node": "meeting",
+        "flags": {},
+        "variables": {
+          "affinity": 0,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        },
+        "stage": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": "微笑",
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "right",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        },
+        "scene_start": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": "微笑",
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "right",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        }
+      },
+      {
+        "node": "repair",
+        "flags": {},
+        "variables": {
+          "affinity": 40,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        },
+        "stage": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": "微笑",
+              "side": "left",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        },
+        "scene_start": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": "微笑",
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "right",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        }
+      },
+      {
+        "node": "reply",
+        "flags": {},
+        "variables": {
+          "affinity": 50,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        },
+        "stage": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        },
+        "scene_start": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": "微笑",
+              "side": "left",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        }
+      },
+      {
+        "node": "letter",
+        "flags": {},
+        "variables": {
+          "affinity": 50,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        },
+        "stage": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        },
+        "scene_start": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        }
+      },
+      {
+        "node": "dawn",
+        "flags": {},
+        "variables": {
+          "affinity": 70,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        },
+        "stage": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": null,
+              "side": "right",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "cen",
+              "expression": null,
+              "side": "left",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        },
+        "scene_start": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "cen",
+              "expression": null,
+              "side": "right",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        }
+      },
+      {
+        "node": "decision",
+        "flags": {},
+        "variables": {
+          "affinity": 70,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        },
+        "stage": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": null,
+              "side": "right",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "cen",
+              "expression": null,
+              "side": "left",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        },
+        "scene_start": {
+          "actors": [
+            {
+              "character": "qiao",
+              "expression": null,
+              "side": "right",
+              "scale": 1.0
+            },
+            {
+              "character": "lin",
+              "expression": null,
+              "side": "center",
+              "scale": 1.0
+            },
+            {
+              "character": "cen",
+              "expression": null,
+              "side": "left",
+              "scale": 1.0
+            }
+          ],
+          "background": "bay",
+          "music": {
+            "audio": "music_harbor",
+            "volume": 1.0,
+            "looped": true,
+            "fade": 0.0
+          },
+          "ambience": {
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          },
+          "music_fade": 0.0,
+          "ambience_fade": 1.0
+        }
+      }
+    ]
+  }
+}

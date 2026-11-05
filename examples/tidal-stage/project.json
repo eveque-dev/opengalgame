@@ -1,0 +1,1288 @@
+{
+  "format_version": 3,
+  "id": "opengalgame-tidal-stage-v5",
+  "title": "潮汐剧场",
+  "author": "OpenGalgame · 演出与配音样片",
+  "start": "opening",
+  "characters": [
+    {
+      "id": "qiao",
+      "name": "乔安",
+      "color": [
+        240,
+        193,
+        170
+      ],
+      "portrait": "assets/qiao.webp",
+      "expressions": {
+        "微笑": "assets/qiao.webp"
+      },
+      "tags": ""
+    },
+    {
+      "id": "lin",
+      "name": "林澈",
+      "color": [
+        154,
+        202,
+        212
+      ],
+      "portrait": "assets/lin.webp",
+      "expressions": {
+        "认真": "assets/lin.webp"
+      },
+      "tags": ""
+    },
+    {
+      "id": "cen",
+      "name": "岑舟",
+      "color": [
+        154,
+        202,
+        212
+      ],
+      "portrait": "assets/lin.webp",
+      "expressions": {
+        "认真": "assets/lin.webp"
+      },
+      "tags": ""
+    },
+    {
+      "id": "shen",
+      "name": "沈音",
+      "color": [
+        240,
+        193,
+        170
+      ],
+      "portrait": "assets/qiao.webp",
+      "expressions": {
+        "微笑": "assets/qiao.webp"
+      },
+      "tags": ""
+    }
+  ],
+  "backgrounds": [
+    {
+      "id": "bay",
+      "name": "雨后的海湾",
+      "file": "assets/bay.webp",
+      "tags": ""
+    },
+    {
+      "id": "city",
+      "name": "夜色中的车站",
+      "file": "assets/city.webp",
+      "tags": ""
+    }
+  ],
+  "flags": {},
+  "variables": {
+    "affinity": 0,
+    "clues": 0,
+    "promised": false,
+    "visits": 0
+  },
+  "nodes": [
+    {
+      "id": "opening",
+      "title": "最后一班潮汐",
+      "kind": "dialogue",
+      "text": "剧场关门前，海边的钟又响了一次。你带着那封迟到的信，回到了排练开始的地方。",
+      "character": null,
+      "background": "bay",
+      "next": "entrance",
+      "choices": [],
+      "position": [
+        0.0,
+        0.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "第一幕 · 回声",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [
+          {
+            "kind": "add",
+            "variable": "visits",
+            "amount": 1
+          },
+          {
+            "kind": "add",
+            "variable": "clues",
+            "amount": 1
+          }
+        ],
+        "exit": [],
+        "actions": [
+          {
+            "kind": "wait",
+            "seconds": 0.35
+          }
+        ],
+        "voice": "voice_opening",
+        "audio": [
+          {
+            "channel": "ambience",
+            "audio": "amb_waves",
+            "volume": 0.45,
+            "looped": true,
+            "fade": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "entrance",
+      "title": "两个人的开场",
+      "kind": "dialogue",
+      "text": "你终于来了。林澈说今晚不排结局，我们先把那扇老窗修好，让海风自己走进来。",
+      "character": "qiao",
+      "background": "bay",
+      "next": "meeting",
+      "choices": [],
+      "position": [
+        270.0,
+        0.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "第一幕 · 回声",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [
+          {
+            "kind": "show",
+            "character": "qiao",
+            "expression": null,
+            "side": "left",
+            "scale": 1.0,
+            "seconds": 0.4
+          },
+          {
+            "kind": "show",
+            "character": "lin",
+            "expression": null,
+            "side": "right",
+            "scale": 1.0,
+            "seconds": 0.4
+          },
+          {
+            "kind": "move",
+            "character": "qiao",
+            "side": "center",
+            "scale": 1.0,
+            "seconds": 0.6
+          },
+          {
+            "kind": "expression",
+            "character": "qiao",
+            "expression": "微笑"
+          },
+          {
+            "kind": "wait",
+            "seconds": 0.25
+          }
+        ],
+        "voice": "voice_entrance",
+        "audio": []
+      }
+    },
+    {
+      "id": "meeting",
+      "title": "先听谁的声音",
+      "kind": "choice",
+      "text": "一边是等待修好的窗，一边是写着旧日期的值班簿。你决定先做哪一件事？",
+      "character": null,
+      "background": "bay",
+      "next": null,
+      "choices": [
+        {
+          "text": "留下来帮林澈修窗",
+          "target": "repair",
+          "condition": null,
+          "set_flag": null,
+          "effects": [
+            {
+              "kind": "add",
+              "variable": "affinity",
+              "amount": 40
+            }
+          ]
+        },
+        {
+          "text": "去档案室查清那天的事",
+          "target": "archive",
+          "condition": null,
+          "set_flag": null,
+          "effects": [
+            {
+              "kind": "add",
+              "variable": "clues",
+              "amount": 2
+            }
+          ]
+        }
+      ],
+      "position": [
+        540.0,
+        0.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "第一幕 · 回声",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [],
+        "voice": "voice_meeting",
+        "audio": []
+      }
+    },
+    {
+      "id": "repair",
+      "title": "窗开了",
+      "kind": "dialogue",
+      "text": "木框终于不再吱呀作响。林澈把工具放下，说有些事情只要一起做过，就不会再害怕。",
+      "character": "lin",
+      "background": "bay",
+      "next": "reply",
+      "choices": [],
+      "position": [
+        0.0,
+        210.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "第二幕 · 来信",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [
+          {
+            "kind": "add",
+            "variable": "affinity",
+            "amount": 10
+          }
+        ],
+        "actions": [
+          {
+            "kind": "move",
+            "character": "lin",
+            "side": "center",
+            "scale": 1.0,
+            "seconds": 0.6
+          },
+          {
+            "kind": "move",
+            "character": "qiao",
+            "side": "left",
+            "scale": 1.0,
+            "seconds": 0.6
+          }
+        ],
+        "voice": "voice_repair",
+        "audio": [
+          {
+            "channel": "effects",
+            "audio": "fx_bell",
+            "volume": 0.6,
+            "looped": false,
+            "fade": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "id": "archive",
+      "title": "另一位证人",
+      "kind": "dialogue",
+      "text": "沈音把值班簿递给你。岑舟一直记得那盏灯，只是从来没有找到一个愿意听完的人。",
+      "character": "shen",
+      "background": "bay",
+      "next": "reply",
+      "choices": [],
+      "position": [
+        270.0,
+        210.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "第二幕 · 来信",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [
+          {
+            "kind": "add",
+            "variable": "clues",
+            "amount": 1
+          }
+        ],
+        "exit": [],
+        "actions": [
+          {
+            "kind": "hide",
+            "character": "qiao",
+            "seconds": 0.3
+          },
+          {
+            "kind": "show",
+            "character": "cen",
+            "expression": null,
+            "side": "left",
+            "scale": 1.0,
+            "seconds": 0.4
+          },
+          {
+            "kind": "show",
+            "character": "shen",
+            "expression": null,
+            "side": "right",
+            "scale": 1.0,
+            "seconds": 0.4
+          }
+        ],
+        "voice": "voice_archive",
+        "audio": []
+      }
+    },
+    {
+      "id": "reply",
+      "title": "信封上的潮痕",
+      "kind": "dialogue",
+      "text": "原来那封信没有被忘记。它只是等着收信的人，愿意再把故事听一遍。",
+      "character": "qiao",
+      "background": "bay",
+      "next": "letter",
+      "choices": [],
+      "position": [
+        540.0,
+        210.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "第二幕 · 来信",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [
+          {
+            "kind": "show",
+            "character": "qiao",
+            "expression": null,
+            "side": "center",
+            "scale": 1.0,
+            "seconds": 0.4
+          }
+        ],
+        "voice": "voice_reply",
+        "audio": []
+      }
+    },
+    {
+      "id": "letter",
+      "title": "拆开还是保留",
+      "kind": "choice",
+      "text": "信纸很轻，可你知道，这一次选择之后，总得有人认真回答。",
+      "character": null,
+      "background": "bay",
+      "next": null,
+      "choices": [
+        {
+          "text": "现在拆开，把话说清楚",
+          "target": "dawn",
+          "condition": null,
+          "set_flag": null,
+          "effects": [
+            {
+              "kind": "add",
+              "variable": "affinity",
+              "amount": 20
+            }
+          ]
+        },
+        {
+          "text": "留到明天，约定一起再来",
+          "target": "dawn",
+          "condition": null,
+          "set_flag": null,
+          "effects": [
+            {
+              "kind": "set",
+              "variable": "promised",
+              "value": true
+            },
+            {
+              "kind": "add",
+              "variable": "clues",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "position": [
+        0.0,
+        420.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "第二幕 · 来信",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [],
+        "voice": "voice_letter",
+        "audio": []
+      }
+    },
+    {
+      "id": "dawn",
+      "title": "天亮以前",
+      "kind": "dialogue",
+      "text": "潮水已经转向。你可以留下，也可以远行，但这一次，没有谁需要替别人决定。",
+      "character": "cen",
+      "background": "bay",
+      "next": "decision",
+      "choices": [],
+      "position": [
+        270.0,
+        420.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "第三幕 · 明天",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [
+          {
+            "kind": "hide",
+            "character": "shen",
+            "seconds": 0.3
+          },
+          {
+            "kind": "move",
+            "character": "cen",
+            "side": "left",
+            "scale": 1.0,
+            "seconds": 0.6
+          },
+          {
+            "kind": "move",
+            "character": "qiao",
+            "side": "right",
+            "scale": 1.0,
+            "seconds": 0.6
+          }
+        ],
+        "voice": "voice_dawn",
+        "audio": []
+      }
+    },
+    {
+      "id": "decision",
+      "title": "写下你的结局",
+      "kind": "choice",
+      "text": "剧场里的人都停下了手里的事，等你说出最后一句对白。",
+      "character": null,
+      "background": "bay",
+      "next": null,
+      "choices": [
+        {
+          "text": "留下来，一起把剧场开下去",
+          "target": "ending_home",
+          "condition": null,
+          "set_flag": null,
+          "when": {
+            "kind": "compare",
+            "variable": "affinity",
+            "op": "ge",
+            "value": 60
+          }
+        },
+        {
+          "text": "公开值班簿里的真相",
+          "target": "ending_truth",
+          "condition": null,
+          "set_flag": null,
+          "when": {
+            "kind": "compare",
+            "variable": "clues",
+            "op": "ge",
+            "value": 3
+          }
+        },
+        {
+          "text": "守住约定，明天再见",
+          "target": "ending_promise",
+          "condition": null,
+          "set_flag": null,
+          "when": {
+            "kind": "compare",
+            "variable": "promised",
+            "op": "eq",
+            "value": true
+          }
+        },
+        {
+          "text": "带着信，去海的另一边",
+          "target": "ending_sea",
+          "condition": null,
+          "set_flag": null
+        }
+      ],
+      "position": [
+        540.0,
+        420.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "第三幕 · 明天",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [],
+        "voice": "voice_decision",
+        "audio": []
+      }
+    },
+    {
+      "id": "ending_home",
+      "title": "结局 · 灯火常亮",
+      "kind": "ending",
+      "text": "你们重新排好了值班表。海风穿过修好的窗，而灯火会一直留给晚归的人。",
+      "character": "qiao",
+      "background": "bay",
+      "next": null,
+      "choices": [],
+      "position": [
+        0.0,
+        630.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "终幕",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [
+          {
+            "kind": "wait",
+            "seconds": 0.3
+          }
+        ],
+        "voice": "voice_ending_home",
+        "audio": [
+          {
+            "channel": "ambience",
+            "audio": null,
+            "volume": 1.0,
+            "looped": true,
+            "fade": 1.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "ending_truth",
+      "title": "结局 · 有名字的回声",
+      "kind": "ending",
+      "text": "值班簿终于被读到了最后一页。那些沉默的日子，都有了可以被记住的名字。",
+      "character": "shen",
+      "background": "bay",
+      "next": null,
+      "choices": [],
+      "position": [
+        270.0,
+        630.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "终幕",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [
+          {
+            "kind": "wait",
+            "seconds": 0.3
+          }
+        ],
+        "voice": "voice_ending_truth",
+        "audio": [
+          {
+            "channel": "ambience",
+            "audio": null,
+            "volume": 1.0,
+            "looped": true,
+            "fade": 1.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "ending_promise",
+      "title": "结局 · 明天的座位",
+      "kind": "ending",
+      "text": "信还没有拆开，座位却已经留好。原来约定的意思，是有人会认真等你再来。",
+      "character": "lin",
+      "background": "bay",
+      "next": null,
+      "choices": [],
+      "position": [
+        540.0,
+        630.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "终幕",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [
+          {
+            "kind": "wait",
+            "seconds": 0.3
+          }
+        ],
+        "voice": "voice_ending_promise",
+        "audio": [
+          {
+            "channel": "ambience",
+            "audio": null,
+            "volume": 1.0,
+            "looped": true,
+            "fade": 1.2
+          }
+        ]
+      }
+    },
+    {
+      "id": "ending_sea",
+      "title": "结局 · 下一座港口",
+      "kind": "ending",
+      "text": "你在天亮时离港。信纸上多写了一行地址，下一次告别，也可以是一封新信的开头。",
+      "character": "cen",
+      "background": "bay",
+      "next": null,
+      "choices": [],
+      "position": [
+        0.0,
+        840.0
+      ],
+      "portrait_side": "right",
+      "portrait_scale": 1.0,
+      "chapter": "终幕",
+      "expression": null,
+      "actors": [],
+      "transition": "none",
+      "bgm": null,
+      "sound": null,
+      "direction": {
+        "enter": [],
+        "exit": [],
+        "actions": [
+          {
+            "kind": "wait",
+            "seconds": 0.3
+          }
+        ],
+        "voice": "voice_ending_sea",
+        "audio": [
+          {
+            "channel": "ambience",
+            "audio": null,
+            "volume": 1.0,
+            "looped": true,
+            "fade": 1.2
+          }
+        ]
+      }
+    }
+  ],
+  "audio": [
+    {
+      "id": "music_harbor",
+      "name": "港湾和弦",
+      "file": "assets/harbor.wav"
+    },
+    {
+      "id": "amb_waves",
+      "name": "海边环境声",
+      "file": "assets/waves.wav"
+    },
+    {
+      "id": "fx_bell",
+      "name": "钟声",
+      "file": "assets/bell.wav"
+    },
+    {
+      "id": "voice_opening",
+      "name": "配音 · 最后一班潮汐",
+      "file": "assets/opening.wav"
+    },
+    {
+      "id": "voice_entrance",
+      "name": "配音 · 两个人的开场",
+      "file": "assets/entrance.wav"
+    },
+    {
+      "id": "voice_meeting",
+      "name": "配音 · 先听谁的声音",
+      "file": "assets/meeting.wav"
+    },
+    {
+      "id": "voice_repair",
+      "name": "配音 · 窗开了",
+      "file": "assets/repair.wav"
+    },
+    {
+      "id": "voice_archive",
+      "name": "配音 · 另一位证人",
+      "file": "assets/archive.wav"
+    },
+    {
+      "id": "voice_reply",
+      "name": "配音 · 信封上的潮痕",
+      "file": "assets/reply.wav"
+    },
+    {
+      "id": "voice_letter",
+      "name": "配音 · 拆开还是保留",
+      "file": "assets/letter.wav"
+    },
+    {
+      "id": "voice_dawn",
+      "name": "配音 · 天亮以前",
+      "file": "assets/dawn.wav"
+    },
+    {
+      "id": "voice_decision",
+      "name": "配音 · 写下你的结局",
+      "file": "assets/decision.wav"
+    },
+    {
+      "id": "voice_ending_home",
+      "name": "配音 · 结局 · 灯火常亮",
+      "file": "assets/ending_home.wav"
+    },
+    {
+      "id": "voice_ending_truth",
+      "name": "配音 · 结局 · 有名字的回声",
+      "file": "assets/ending_truth.wav"
+    },
+    {
+      "id": "voice_ending_promise",
+      "name": "配音 · 结局 · 明天的座位",
+      "file": "assets/ending_promise.wav"
+    },
+    {
+      "id": "voice_ending_sea",
+      "name": "配音 · 结局 · 下一座港口",
+      "file": "assets/ending_sea.wav"
+    }
+  ],
+  "presentation": {
+    "cover": null,
+    "icon": null,
+    "accent": [
+      169,
+      156,
+      241
+    ],
+    "font_size": 23.0,
+    "typewriter_cps": 24.0,
+    "transition_seconds": 0.3,
+    "bgm": "music_harbor"
+  },
+  "tasks": [],
+  "save_compatibility": {
+    "node_aliases": {},
+    "legacy_baselines": []
+  },
+  "production": {
+    "theme": {
+      "name": "潮汐 · 夜航",
+      "panel": [
+        17,
+        30,
+        43
+      ],
+      "text": [
+        237,
+        241,
+        240
+      ],
+      "name_color": [
+        166,
+        219,
+        209
+      ],
+      "choice": [
+        43,
+        67,
+        79
+      ],
+      "choice_text": [
+        240,
+        245,
+        243
+      ],
+      "menu": [
+        14,
+        27,
+        38
+      ],
+      "opacity": 240,
+      "panel_height": 0.43,
+      "panel_width": 0.96,
+      "radius": 8,
+      "button_height": 38.0,
+      "name_size": 22.0,
+      "choice_size": 18.0,
+      "name_box": true,
+      "menu_position": "center",
+      "save_columns": 2,
+      "font_family": "微软雅黑",
+      "font_file": null
+    },
+    "cases": [
+      {
+        "from_start": true,
+        "name": "自动路线 · 结局 · 灯火常亮",
+        "initial": {
+          "current": {
+            "node": "opening",
+            "flags": {},
+            "variables": {
+              "affinity": 0,
+              "clues": 1,
+              "promised": false,
+              "visits": 1
+            },
+            "stage": {
+              "actors": [],
+              "background": "bay",
+              "music": {
+                "audio": "music_harbor",
+                "volume": 1.0,
+                "looped": true,
+                "fade": 0.0
+              },
+              "ambience": {
+                "audio": "amb_waves",
+                "volume": 0.45,
+                "looped": true,
+                "fade": 1.0
+              },
+              "music_fade": 0.0,
+              "ambience_fade": 1.0
+            },
+            "scene_start": {
+              "actors": [],
+              "background": "bay",
+              "music": {
+                "audio": "music_harbor",
+                "volume": 1.0,
+                "looped": true,
+                "fade": 0.0
+              },
+              "ambience": {
+                "audio": "amb_waves",
+                "volume": 0.45,
+                "looped": true,
+                "fade": 1.0
+              },
+              "music_fade": 0.0,
+              "ambience_fade": 1.0
+            }
+          },
+          "history": []
+        },
+        "commands": [
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 0
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 0
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 0
+          }
+        ],
+        "expected_node": "ending_home",
+        "expected_values": {
+          "affinity": 70,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        }
+      },
+      {
+        "from_start": true,
+        "name": "自动路线 · 结局 · 下一座港口",
+        "initial": {
+          "current": {
+            "node": "opening",
+            "flags": {},
+            "variables": {
+              "affinity": 0,
+              "clues": 1,
+              "promised": false,
+              "visits": 1
+            },
+            "stage": {
+              "actors": [],
+              "background": "bay",
+              "music": {
+                "audio": "music_harbor",
+                "volume": 1.0,
+                "looped": true,
+                "fade": 0.0
+              },
+              "ambience": {
+                "audio": "amb_waves",
+                "volume": 0.45,
+                "looped": true,
+                "fade": 1.0
+              },
+              "music_fade": 0.0,
+              "ambience_fade": 1.0
+            },
+            "scene_start": {
+              "actors": [],
+              "background": "bay",
+              "music": {
+                "audio": "music_harbor",
+                "volume": 1.0,
+                "looped": true,
+                "fade": 0.0
+              },
+              "ambience": {
+                "audio": "amb_waves",
+                "volume": 0.45,
+                "looped": true,
+                "fade": 1.0
+              },
+              "music_fade": 0.0,
+              "ambience_fade": 1.0
+            }
+          },
+          "history": []
+        },
+        "commands": [
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 0
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 0
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 3
+          }
+        ],
+        "expected_node": "ending_sea",
+        "expected_values": {
+          "affinity": 70,
+          "clues": 1,
+          "promised": false,
+          "visits": 1
+        }
+      },
+      {
+        "from_start": true,
+        "name": "自动路线 · 结局 · 明天的座位",
+        "initial": {
+          "current": {
+            "node": "opening",
+            "flags": {},
+            "variables": {
+              "affinity": 0,
+              "clues": 1,
+              "promised": false,
+              "visits": 1
+            },
+            "stage": {
+              "actors": [],
+              "background": "bay",
+              "music": {
+                "audio": "music_harbor",
+                "volume": 1.0,
+                "looped": true,
+                "fade": 0.0
+              },
+              "ambience": {
+                "audio": "amb_waves",
+                "volume": 0.45,
+                "looped": true,
+                "fade": 1.0
+              },
+              "music_fade": 0.0,
+              "ambience_fade": 1.0
+            },
+            "scene_start": {
+              "actors": [],
+              "background": "bay",
+              "music": {
+                "audio": "music_harbor",
+                "volume": 1.0,
+                "looped": true,
+                "fade": 0.0
+              },
+              "ambience": {
+                "audio": "amb_waves",
+                "volume": 0.45,
+                "looped": true,
+                "fade": 1.0
+              },
+              "music_fade": 0.0,
+              "ambience_fade": 1.0
+            }
+          },
+          "history": []
+        },
+        "commands": [
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 0
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 1
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 2
+          }
+        ],
+        "expected_node": "ending_promise",
+        "expected_values": {
+          "affinity": 50,
+          "clues": 2,
+          "promised": true,
+          "visits": 1
+        }
+      },
+      {
+        "from_start": true,
+        "name": "自动路线 · 结局 · 有名字的回声",
+        "initial": {
+          "current": {
+            "node": "opening",
+            "flags": {},
+            "variables": {
+              "affinity": 0,
+              "clues": 1,
+              "promised": false,
+              "visits": 1
+            },
+            "stage": {
+              "actors": [],
+              "background": "bay",
+              "music": {
+                "audio": "music_harbor",
+                "volume": 1.0,
+                "looped": true,
+                "fade": 0.0
+              },
+              "ambience": {
+                "audio": "amb_waves",
+                "volume": 0.45,
+                "looped": true,
+                "fade": 1.0
+              },
+              "music_fade": 0.0,
+              "ambience_fade": 1.0
+            },
+            "scene_start": {
+              "actors": [],
+              "background": "bay",
+              "music": {
+                "audio": "music_harbor",
+                "volume": 1.0,
+                "looped": true,
+                "fade": 0.0
+              },
+              "ambience": {
+                "audio": "amb_waves",
+                "volume": 0.45,
+                "looped": true,
+                "fade": 1.0
+              },
+              "music_fade": 0.0,
+              "ambience_fade": 1.0
+            }
+          },
+          "history": []
+        },
+        "commands": [
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 1
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 0
+          },
+          {
+            "kind": "advance",
+            "choice": null
+          },
+          {
+            "kind": "advance",
+            "choice": 1
+          }
+        ],
+        "expected_node": "ending_truth",
+        "expected_values": {
+          "affinity": 20,
+          "clues": 4,
+          "promised": false,
+          "visits": 1
+        }
+      }
+    ],
+    "asset_aliases": {}
+  }
+}

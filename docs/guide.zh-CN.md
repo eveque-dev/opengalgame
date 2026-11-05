@@ -86,3 +86,6 @@ target/release/opengalgame.exe --export examples/long-form/project.json exports/
 目标 Windows 10/11 x64，已在本机验证，尚未覆盖全部显卡和系统版本。需要 OpenGL 3.3 驱动；C 运行库静态链接，不需要 WebView。中文读取本机微软雅黑/黑体，不分发系统字体。暂无代码签名、`.rpy` 导入、配音轨编辑、任意脚本插件或其他平台导出。
 
 示例对白原创；图片复用自本工作区此前生成的演示素材；音乐与提示音为程序合成。真实作品请使用自己有权使用的素材。组件许可见 [组件声明](../THIRD_PARTY.md) 和发布包 `licenses/`。
+
+
+0.5 新增演出编排、逐句配音、四类声音、主题、素材维护与分支回归测试。项目中心可打开《潮汐剧场》体验；详细操作见 [演出与制作指南](production-v5.md)。

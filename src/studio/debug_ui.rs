@@ -10,6 +10,7 @@ impl Studio {
         };
         match command.apply(&self.project, runtime) {
             Ok(()) => {
+                self.v5.instant_scene = matches!(command, Command::Back);
                 if matches!(command, Command::Set { .. } | Command::Jump { .. }) {
                     self.v4.debug.tainted = true;
                 }
@@ -331,6 +332,7 @@ impl Studio {
         if replay && let Some(route) = &self.v4.debug.route {
             match route.replay_with_coverage(&self.project) {
                 Ok((runtime, visited)) => {
+                    self.v5.instant_scene = true;
                     self.runtime = Some(runtime);
                     self.section = Section::Script;
                     self.graph = false;
