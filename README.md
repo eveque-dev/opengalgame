@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/eveque-dev/opengalgame/releases/download/v0.5.0/opengalgame-v0.5.0-windows-x64.zip"><strong>下载编辑器</strong></a> ·
+  <a href="https://github.com/eveque-dev/opengalgame/releases/download/v0.5.1/opengalgame-v0.5.1-windows-x64.zip"><strong>下载编辑器</strong></a> ·
   <a href="docs/guide.zh-CN.md">使用指南</a> ·
   <a href="examples/long-form/project.json">查看示例剧本</a> ·
   <a href="docs/architecture.md">引擎架构</a>
@@ -89,11 +89,11 @@ OpenGalgame 把人物、背景、对白和选择放在同一个工作区。你�
 
 | 文件 | 用途 |
 | :--- | :--- |
-| `opengalgame-v0.5.0-windows-x64.zip` | **推荐。** 便携编辑器，附完整样例和许可文件；解压后双击 `opengalgame.exe` |
-| `tidal-stage-v0.5.0-windows-x64.zip` | 新版《潮汐剧场》四结局演出样片，附逐句配音和回归用例 |
-| `harbor-signals-v0.5.0-windows-x64.zip` | 新版《灯塔来信》五结局样例，展示整数、文本与复合条件 |
-| `three-letters-v0.5.0-windows-x64.zip` | 已导出的三结局游戏，解压后双击 `Game.exe` 体验 |
-| `opengalgame-v0.5.0-source.zip` | 源码、锁定依赖、样例、测试与打包工具 |
+| `opengalgame-v0.5.1-windows-x64.zip` | **推荐。** 便携编辑器，附完整样例和许可文件；解压后双击 `opengalgame.exe` |
+| `tidal-stage-v0.5.1-windows-x64.zip` | 新版《潮汐剧场》四结局演出样片，附逐句配音和回归用例 |
+| `harbor-signals-v0.5.1-windows-x64.zip` | 新版《灯塔来信》五结局样例，展示整数、文本与复合条件 |
+| `three-letters-v0.5.1-windows-x64.zip` | 已导出的三结局游戏，解压后双击 `Game.exe` 体验 |
+| `opengalgame-v0.5.1-source.zip` | 源码、锁定依赖、样例、测试与打包工具 |
 | `opengalgame.exe` | 单文件编辑器，双击进入项目中心，可直接新建空白故事或双结局模板 |
 
 玩家和便携版使用者无需安装 Rust、Python 或 WebView。目标平台为 **Windows 10/11 x64**，需要正常的 OpenGL 3.3 图形驱动。

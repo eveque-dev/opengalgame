@@ -280,7 +280,9 @@ impl Studio {
     pub(super) fn save_browser(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let theme = self.game_theme();
-        let columns = theme.save_columns;
+        let columns = theme
+            .save_columns
+            .min(((ctx.content_rect().width() - 56.) / 220.).max(1.) as usize);
         egui::Window::new("存档与读取").open(&mut open).constrain_to(ctx.content_rect())
             .default_width(if columns>1{960.}else{650.}).default_height(580.)
             .frame(egui::Frame::window(&ctx.style()).fill(Color32::from_rgb(theme.menu[0],theme.menu[1],theme.menu[2])))
@@ -294,6 +296,8 @@ impl Studio {
                             ui.push_id(slot,|ui|{
                                 egui::Frame::new().fill(Color32::from_rgb(theme.panel[0],theme.panel[1],theme.panel[2])).inner_margin(12).corner_radius(theme.radius).show(ui,|ui|{
                                     ui.set_min_width(width-24.);ui.set_max_width(width-24.);
+                                    ui.with_layout(egui::Layout::top_down(egui::Align::Min),|ui|{
+                                    ui.set_width(width-24.);
                                     let dir=save_directory(&self.project.id);
                                     let save:Option<SaveGame>=std::fs::read(dir.join(format!("{slot}.json"))).ok().and_then(|b|serde_json::from_slice(&b).ok());
                                     let preview=dir.join(format!("{slot}.png"));
@@ -306,11 +310,12 @@ impl Studio {
                                         }
                                         if let Some(Ok(texture))=self.textures.get(&key){let w=(width-24.).min(240.);ui.image((texture.id(),Vec2::new(w,w*0.61)));}
                                     }
-                                    ui.label(RichText::new(if slot=="auto"{"自动存档"}else{slot}).color(Color32::from_rgb(theme.name_color[0],theme.name_color[1],theme.name_color[2])));
-                                    if let Some(save)=&save{ui.label(&save.node_title);ui.label(RichText::new(format!("经过 {} 段 · {}",save.runtime.history.len(),save_age(save.saved_at))).small());}else{ui.label("空白存档");}
+                                    ui.label(RichText::new(if slot=="auto"{"自动存档".to_owned()}else{format!("存档 {}",i)}).color(Color32::from_rgb(theme.name_color[0],theme.name_color[1],theme.name_color[2])));
+                                    if let Some(save)=&save{ui.add(egui::Label::new(&save.node_title).wrap());ui.label(RichText::new(format!("经过 {} 段 · {}",save.runtime.history.len(),save_age(save.saved_at))).small());}else{ui.label("空白存档");}
                                     ui.horizontal_wrapped(|ui|{
                                         if slot!="auto" && ui.add_enabled(self.runtime.is_some(),egui::Button::new(if save.is_some(){"覆盖此格"}else{"保存到此格"})).clicked(){self.save_slot(slot);}
                                         if ui.add_enabled(save.is_some(),egui::Button::new("读取")).clicked(){self.load_slot(slot);}
+                                    });
                                     });
                                 });
                             });
