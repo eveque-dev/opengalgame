@@ -36,6 +36,14 @@ pub struct SaveGame {
     pub compatibility: Option<crate::compatibility::SaveCompatibility>,
 }
 pub fn fingerprint(project: &Project) -> String {
+    let mut runtime_project;
+    let project = if project.has_author_notes() {
+        runtime_project = project.clone();
+        runtime_project.clear_author_notes();
+        &runtime_project
+    } else {
+        project
+    };
     format!(
         "{:x}",
         Sha256::digest(serde_json::to_vec(project).unwrap_or_default())

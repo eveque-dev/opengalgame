@@ -61,7 +61,7 @@ impl Studio {
             let count=direction.actions.len();
             for (i,action) in direction.actions.iter_mut().enumerate(){
                 let response=ui.push_id(("stage_card",&id,i),|ui|{
-                    egui::Frame::new().fill(PANEL).stroke(Stroke::new(1.0_f32,FIELD)).inner_margin(12).corner_radius(8).show(ui,|ui|{
+                    egui::Frame::new().fill(ui.visuals().panel_fill).stroke(Stroke::new(1.0_f32,ui.visuals().faint_bg_color)).inner_margin(12).corner_radius(8).show(ui,|ui|{
                         ui.set_min_width((ui.available_width()-8.).max(200.));
                         ui.horizontal_wrapped(|ui|{
                             let handle=ui.add(egui::Label::new("拖动排序").sense(egui::Sense::drag())).on_hover_cursor(egui::CursorIcon::Grab);
@@ -88,7 +88,7 @@ impl Studio {
                     });
                 }).response;
                 if let Some((node,from))=&self.v5.stage_drag && node==&id && ui.ctx().pointer_interact_pos().is_some_and(|p|response.rect.intersect(ui.clip_rect()).contains(p)){
-                    ui.painter().rect_stroke(response.rect,8.,Stroke::new(2.0_f32,ACCENT),egui::StrokeKind::Inside);
+                    ui.painter().rect_stroke(response.rect,8.,Stroke::new(2.0_f32,accent(ui)),egui::StrokeKind::Inside);
                     if ui.input(|input|input.pointer.any_released()){reorder=Some((*from,i));}
                 }
             }

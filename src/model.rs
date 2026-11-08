@@ -29,6 +29,8 @@ pub struct Project {
     pub save_compatibility: crate::compatibility::SavePolicy,
     #[serde(default, skip_serializing_if = "crate::production::is_default")]
     pub production: crate::production::Production,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub story_recap: String,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
@@ -57,6 +59,18 @@ pub struct Character {
     pub expressions: BTreeMap<String, String>,
     #[serde(default)]
     pub tags: String,
+    #[serde(default, skip_serializing_if = "crate::production::is_default")]
+    pub profile: CharacterProfile,
+}
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct CharacterProfile {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub role: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub voice: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub continuity: String,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AudioAsset {
@@ -245,6 +259,19 @@ pub struct Issue {
     pub message: String,
 }
 impl Project {
+    pub(crate) fn has_author_notes(&self) -> bool {
+        !self.story_recap.is_empty()
+            || self
+                .characters
+                .iter()
+                .any(|c| c.profile != CharacterProfile::default())
+    }
+    pub(crate) fn clear_author_notes(&mut self) {
+        self.story_recap.clear();
+        for character in &mut self.characters {
+            character.profile = CharacterProfile::default();
+        }
+    }
     pub fn uses_production(&self) -> bool {
         self.production != Default::default()
             || self.nodes.iter().any(|n| n.direction != Default::default())

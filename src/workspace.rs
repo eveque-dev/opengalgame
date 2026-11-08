@@ -1,4 +1,8 @@
-use crate::studio::{self, Studio, WorkspaceRequest};
+use crate::{
+    ai_ui::Assistant,
+    editor_theme::{Appearance, accent, primary_button},
+    studio::{self, Studio, WorkspaceRequest},
+};
 use eframe::{
     App,
     egui::{self, Color32, RichText, Vec2},
@@ -11,10 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const BASE: Color32 = Color32::from_rgb(21, 29, 43);
-const PANEL: Color32 = Color32::from_rgb(32, 42, 57);
 const MUTED: Color32 = Color32::from_rgb(168, 181, 201);
-const ACCENT: Color32 = Color32::from_rgb(169, 156, 241);
 const GOOD: Color32 = Color32::from_rgb(128, 200, 179);
 const BAD: Color32 = Color32::from_rgb(255, 176, 181);
 
@@ -62,6 +63,8 @@ enum PendingClose {
 }
 
 pub struct Workspace {
+    ai: Assistant,
+    appearance: Appearance,
     tabs: Vec<Studio>,
     active: Option<usize>,
     home: bool,
@@ -151,6 +154,8 @@ impl Workspace {
             }
         }
         let mut app = Self {
+            ai: Assistant::load(),
+            appearance: Appearance::load(&cc.egui_ctx),
             tabs: vec![],
             active: None,
             home: true,
@@ -435,7 +440,11 @@ impl Workspace {
         let mut close = None;
         let mut home = false;
         egui::TopBottomPanel::top("workspace_tabs")
-            .frame(egui::Frame::new().fill(BASE).inner_margin(10))
+            .frame(
+                egui::Frame::new()
+                    .fill(ctx.style().visuals.extreme_bg_color)
+                    .inner_margin(10),
+            )
             .show(ctx, |ui| {
                 if self.new_open || self.pending_close.is_some() {
                     ui.disable();
@@ -447,16 +456,16 @@ impl Workspace {
                     ui.separator();
                     egui::ScrollArea::horizontal()
                         .id_salt("project_tabs")
-                        .max_width((ui.available_width() - 330.).max(180.))
+                        .max_width((ui.available_width() - 520.).max(140.))
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 for (i, tab) in self.tabs.iter().enumerate() {
                                     ui.push_id(path_key(tab.path()), |ui| {
                                         egui::Frame::new()
                                             .fill(if self.active == Some(i) && !self.home {
-                                                Color32::from_rgb(62, 54, 91)
+                                                ui.visuals().selection.bg_fill
                                             } else {
-                                                PANEL
+                                                ui.visuals().panel_fill
                                             })
                                             .corner_radius(5)
                                             .inner_margin(3)
@@ -525,6 +534,21 @@ impl Workspace {
                     {
                         self.jobs_open = true;
                     }
+                    if ui
+                        .button(if self.ai.busy() {
+                            "AI 创作 · 等待中"
+                        } else {
+                            "AI 创作"
+                        })
+                        .clicked()
+                    {
+                        self.appearance.open = false;
+                        self.ai.open = !self.ai.open;
+                    }
+                    if ui.button("外观").clicked() {
+                        self.ai.open = false;
+                        self.appearance.open = !self.appearance.open;
+                    }
                 });
             });
         if home {
@@ -546,10 +570,10 @@ impl Workspace {
         let mut sample = None;
         let mut refresh = false;
         let mut restore = false;
-        egui::CentralPanel::default().frame(egui::Frame::new().fill(BASE).inner_margin(28)).show(ctx,|ui|{
+        egui::CentralPanel::default().frame(egui::Frame::new().fill(ctx.style().visuals.extreme_bg_color).inner_margin(28)).show(ctx,|ui|{
             ui.horizontal(|ui|{ui.vertical(|ui|{ui.label(RichText::new("OpenGalgame").size(34.).strong());ui.label(RichText::new("项目中心 · 让每一个故事都有自己的工作台").size(16.).color(MUTED));});ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{if ui.add_sized([130.,44.],egui::Button::new("打开已有项目")).clicked(){open=Some(None);}
-if ui.add_sized([130.,44.],egui::Button::new("新建视觉小说").fill(Color32::from_rgb(79,66,126))).clicked(){self.new_open=true;self.fork_source=None;}});});
-            ui.add_space(18.);ui.horizontal(|ui|{ui.label(format!("{} 个作品",self.catalog.projects.len()));ui.separator();ui.label(format!("{} 个项目已打开",self.tabs.len()));ui.separator();let total:usize=self.tabs.iter().map(|t|t.project().tasks.len()).sum();let done:usize=self.tabs.iter().map(|t|t.project().tasks.iter().filter(|v|v.status==TaskStatus::Done).count()).sum();ui.label(format!("创作待办 {done} / {total}"));ui.separator();ui.colored_label(ACCENT,"0.5 · 演出与制作");});
+if ui.add_sized([130.,44.],primary_button(ui, "新建视觉小说")).clicked(){self.new_open=true;self.fork_source=None;}});});
+            ui.add_space(18.);ui.horizontal(|ui|{ui.label(format!("{} 个作品",self.catalog.projects.len()));ui.separator();ui.label(format!("{} 个项目已打开",self.tabs.len()));ui.separator();let total:usize=self.tabs.iter().map(|t|t.project().tasks.len()).sum();let done:usize=self.tabs.iter().map(|t|t.project().tasks.iter().filter(|v|v.status==TaskStatus::Done).count()).sum();ui.label(format!("创作待办 {done} / {total}"));ui.separator();ui.colored_label(accent(ui),"0.7 · AI 剧本工作台");});
             ui.add_space(14.);
             if self.tabs.is_empty()&&!self.catalog.open_paths.is_empty()&& ui.button(format!("恢复上次工作区 · {} 个项目",self.catalog.open_paths.len())).clicked(){restore=true;}
             ui.horizontal_wrapped(|ui|{ui.label("快速体验");for path in &self.templates {let name=path.to_string_lossy();if ui.button(if name.contains("tidal-stage"){"潮汐剧场 · 演出与配音"}else if name.contains("harbor-signals"){"灯塔来信 · 变量与调试"}else if name.contains("long-form"){"三封来信 · 42 节点"}else{"入门样例 · 8 节点"}).clicked(){sample=Some(path.clone());}}
@@ -561,13 +585,13 @@ if ui.button("保存全部项目").clicked()&& self.save_all(){self.notice="所�
             ui.add_space(12.);
             let mut indices:Vec<_>=(0..self.catalog.projects.len()).filter(|&i|{let c=&self.catalog.projects[i];(c.stage==ProjectStage::Archived)==self.archived&&(self.search.is_empty()||c.title.contains(&self.search)||c.path.to_string_lossy().contains(&self.search))}).collect();
             indices.sort_by_key(|&i|(!self.catalog.projects[i].pinned,std::cmp::Reverse(self.catalog.projects[i].last_opened)));
-            if indices.is_empty(){egui::Frame::new().fill(PANEL).inner_margin(30).corner_radius(8).show(ui,|ui|{ui.label(RichText::new("为下一部作品，留一个位置。").size(25.));ui.label("新建项目，或打开你已有的 project.json。每个作品的待办、存档与编辑状态独立保存。");});}
+            if indices.is_empty(){egui::Frame::new().fill(ui.visuals().panel_fill).inner_margin(30).corner_radius(8).show(ui,|ui|{ui.label(RichText::new("为下一部作品，留一个位置。").size(25.));ui.label("新建项目，或打开你已有的 project.json。每个作品的待办、存档与编辑状态独立保存。");});}
             egui::ScrollArea::vertical().id_salt("project_cards").show(ui,|ui|{
                 for i in indices {
                     let card=self.catalog.projects[i].clone();let key=path_key(&card.path);let tab=self.tabs.iter().position(|t|path_key(t.path())==key);let missing=!card.path.is_file();
-                    egui::Frame::new().fill(PANEL).corner_radius(8).inner_margin(18).show(ui,|ui|{
+                    egui::Frame::new().fill(ui.visuals().panel_fill).corner_radius(8).inner_margin(18).show(ui,|ui|{
                         ui.horizontal(|ui|{
-                            ui.vertical(|ui|{let title=tab.map(|j|self.tabs[j].project().title.as_str()).unwrap_or(&card.title);ui.label(RichText::new(title).size(21.).strong());let parent=card.path.parent().and_then(|p|p.file_name()).unwrap_or_default().to_string_lossy();ui.label(RichText::new(format!("{parent} / project.json")).small().color(MUTED)).on_hover_text(card.path.display().to_string());let(tdone,ttotal)=tab.map(|j|{let tasks=&self.tabs[j].project().tasks;(tasks.iter().filter(|t|t.status==TaskStatus::Done).count(),tasks.len())}).unwrap_or((card.tasks_done,card.tasks_total));ui.label(format!("{} 节点  ·  {} 字（上次读取）  ·  待办 {tdone}/{ttotal}",tab.map(|j|self.tabs[j].project().nodes.len()).unwrap_or(card.nodes),card.words));if let Some(j)=tab&&self.tabs[j].dirty(){ui.colored_label(ACCENT,"已打开 · 有未保存内容");}
+                            ui.vertical(|ui|{let title=tab.map(|j|self.tabs[j].project().title.as_str()).unwrap_or(&card.title);ui.label(RichText::new(title).size(21.).strong());let parent=card.path.parent().and_then(|p|p.file_name()).unwrap_or_default().to_string_lossy();ui.label(RichText::new(format!("{parent} / project.json")).small().color(MUTED)).on_hover_text(card.path.display().to_string());let(tdone,ttotal)=tab.map(|j|{let tasks=&self.tabs[j].project().tasks;(tasks.iter().filter(|t|t.status==TaskStatus::Done).count(),tasks.len())}).unwrap_or((card.tasks_done,card.tasks_total));ui.label(format!("{} 节点  ·  {} 字（上次读取）  ·  待办 {tdone}/{ttotal}",tab.map(|j|self.tabs[j].project().nodes.len()).unwrap_or(card.nodes),card.words));if let Some(j)=tab&&self.tabs[j].dirty(){ui.colored_label(accent(ui),"已打开 · 有未保存内容");}
 if missing{ui.colored_label(BAD,"目录已移动或项目文件不存在");}else if let Some(error)=self.info_errors.get(&key){ui.colored_label(BAD,error);}});
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{if ui.add_enabled(!missing,egui::Button::new(if tab.is_some(){"回到编辑"}else{"打开项目"})).clicked(){open=Some(Some(card.path.clone()));}
 if ui.selectable_label(card.pinned,"置顶").clicked(){self.catalog.projects[i].pinned= !card.pinned;self.catalog_changed=true;}egui::ComboBox::from_id_salt(("stage",i)).selected_text(card.stage.label()).show_ui(ui,|ui|{for stage in [ProjectStage::Draft,ProjectStage::Production,ProjectStage::Complete,ProjectStage::Archived]{let label=stage.label().to_owned();if ui.selectable_value(&mut self.catalog.projects[i].stage,stage,label).changed(){self.catalog_changed=true;}}});});
@@ -659,7 +683,7 @@ if ui.selectable_label(card.pinned,"置顶").clicked(){self.catalog.projects[i].
                 if ui
                     .add_enabled(
                         !self.new_title.trim().is_empty() && self.new_parent.is_some(),
-                        egui::Button::new("创建并打开").fill(Color32::from_rgb(79, 66, 126)),
+                        primary_button(ui, "创建并打开"),
                     )
                     .clicked()
                 {
@@ -754,14 +778,14 @@ if ui.selectable_label(card.pinned,"置顶").clicked(){self.catalog.projects[i].
                                         tab.project().tasks.iter().filter(|t| t.status == status)
                                     {
                                         egui::Frame::new()
-                                            .fill(BASE)
+                                            .fill(ui.visuals().extreme_bg_color)
                                             .corner_radius(6)
                                             .inner_margin(12)
                                             .show(ui, |ui| {
                                                 ui.label(
                                                     RichText::new(&tab.project().title)
                                                         .small()
-                                                        .color(ACCENT),
+                                                        .color(accent(ui)),
                                                 );
                                                 ui.label(RichText::new(&task.title).strong());
                                                 if !task.notes.is_empty() {
@@ -911,7 +935,7 @@ if ui.selectable_label(card.pinned,"置顶").clicked(){self.catalog.projects[i].
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     for (i, task) in self.export_tasks.iter().enumerate().rev() {
                         egui::Frame::new()
-                            .fill(BASE)
+                            .fill(ui.visuals().extreme_bg_color)
                             .inner_margin(12)
                             .corner_radius(6)
                             .show(ui, |ui| {
@@ -1112,8 +1136,11 @@ impl App for Workspace {
                 "{} — OpenGalgame",
                 self.tabs[i].project().title
             )));
-            self.tabs[i].external_modal =
-                self.pending_close.is_some() || self.new_open || self.tasks_open || self.jobs_open;
+            self.tabs[i].external_modal = self.pending_close.is_some()
+                || self.new_open
+                || self.tasks_open
+                || self.jobs_open
+                || (self.ai.open || self.appearance.open) && ctx.wants_keyboard_input();
             self.tabs[i].update(ctx, frame);
             if let Some(request) = self.tabs[i].workspace_request.take() {
                 match request {
@@ -1135,6 +1162,13 @@ impl App for Workspace {
                 "OpenGalgame · 项目中心".into(),
             ));
         }
+        let active = if self.home {
+            None
+        } else {
+            self.active.and_then(|i| self.tabs.get_mut(i))
+        };
+        self.ai.show(ctx, active);
+        self.appearance.show(ctx);
         self.new_project_window(ctx);
         self.task_window(ctx);
         self.job_window(ctx);

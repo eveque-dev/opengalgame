@@ -161,7 +161,7 @@ fn condition_editor(
             for (i, item) in items.iter_mut().enumerate() {
                 ui.push_id(i, |ui| {
                     egui::Frame::new()
-                        .fill(FIELD)
+                        .fill(ui.visuals().faint_bg_color)
                         .corner_radius(4)
                         .inner_margin(9)
                         .show(ui, |ui| {
@@ -203,7 +203,7 @@ pub(super) fn choice_logic(ui: &mut egui::Ui, choice: &mut Choice, defs: &[(Stri
         for (i, effect) in choice.effects.iter_mut().enumerate() {
             ui.push_id(("effect", i), |ui| {
                 egui::Frame::new()
-                    .fill(FIELD)
+                    .fill(ui.visuals().faint_bg_color)
                     .inner_margin(9)
                     .show(ui, |ui| {
                         let mut add = matches!(effect, Effect::Add { .. });
@@ -291,7 +291,7 @@ impl Studio {
                 for (key, value) in &mut self.project.variables {
                     ui.push_id(key, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new(key).color(ACCENT));
+                            ui.label(RichText::new(key).color(accent(ui)));
                             ui.label(value.kind().label());
                             value_editor(ui, value);
                             if ui

@@ -1,4 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod ai;
+mod ai_ui;
+mod editor_theme;
 mod studio;
 mod workspace;
 use anyhow::{Context, Result, ensure};

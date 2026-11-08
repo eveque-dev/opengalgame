@@ -137,6 +137,7 @@ impl Studio {
                         color(ui, "选项底色", &mut theme.choice);
                         color(ui, "选项文字", &mut theme.choice_text);
                         color(ui, "标题 / 存档页底色", &mut theme.menu);
+                        color(ui, "标题主按钮颜色", &mut self.project.presentation.accent);
                         ui.add(
                             egui::Slider::new(&mut theme.button_height, 28.0..=72.0)
                                 .text("选项按钮高度"),

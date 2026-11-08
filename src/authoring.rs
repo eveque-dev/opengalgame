@@ -125,6 +125,7 @@ pub fn import_dialogue(
                     portrait: None,
                     expressions: Default::default(),
                     tags: String::new(),
+                    profile: Default::default(),
                 });
                 Some(id)
             }

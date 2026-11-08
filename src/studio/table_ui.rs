@@ -376,7 +376,7 @@ impl Studio {
                             ui.painter().vline(
                                 rect.center().x,
                                 rect.y_range(),
-                                Stroke::new(1.0_f32, FIELD),
+                                Stroke::new(1.0_f32, ui.visuals().faint_bg_color),
                             );
                             let response =
                                 response.on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
@@ -425,9 +425,9 @@ impl Studio {
                                     ui.push_id(&node.id, |ui| {
                                         egui::Frame::new()
                                             .fill(if self.v4.table.selected.contains(&node.id) {
-                                                Color32::from_rgb(55, 49, 77)
+                                                ui.visuals().selection.bg_fill
                                             } else {
-                                                PANEL
+                                                ui.visuals().panel_fill
                                             })
                                             .inner_margin(2)
                                             .show(ui, |ui| {
@@ -460,7 +460,7 @@ impl Studio {
                                                             ui.label(
                                                                 RichText::new(&node.id)
                                                                     .small()
-                                                                    .color(ACCENT),
+                                                                    .color(accent(ui)),
                                                             );
                                                             text_cell(
                                                                 ui,

@@ -1,3 +1,4 @@
+use crate::editor_theme::{accent, text_on};
 use eframe::egui::{self, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 use opengalgame::{model::*, project_io::*, runtime::*};
 mod advanced;
@@ -252,6 +253,12 @@ impl Studio {
     pub(crate) fn project(&self) -> &Project {
         &self.project
     }
+    pub(crate) fn selected_scene(&self) -> Option<&Node> {
+        if self.player_only || self.runtime.is_some() {
+            return None;
+        }
+        self.project.nodes.get(self.selected)
+    }
     pub(crate) fn is_playing(&self) -> bool {
         self.runtime.is_some()
     }
@@ -271,9 +278,9 @@ impl Studio {
     pub(crate) fn discard_recovery(&self) {
         let _ = self.checkpoints.dismiss(&self.path, &self.saved);
     }
-    pub(crate) fn edit_external(&mut self, edit: impl FnOnce(&mut Project)) {
+    pub(crate) fn edit_external<T>(&mut self, edit: impl FnOnce(&mut Project) -> T) -> T {
         let before = self.project.clone();
-        edit(&mut self.project);
+        let result = edit(&mut self.project);
         if before != self.project {
             self.undo.push(before);
             if self.undo.len() > 100 {
@@ -286,6 +293,16 @@ impl Studio {
                 let _ = self.checkpoints.dismiss(&self.path, &self.saved);
             }
             self.issues.clear();
+        }
+        result
+    }
+    pub(crate) fn focus_scene(&mut self, id: &str) {
+        if self.runtime.is_none()
+            && let Some(index) = self.project.nodes.iter().position(|node| node.id == id)
+        {
+            self.select(index);
+            self.section = Section::Script;
+            self.graph = false;
         }
     }
     fn node_targets(&mut self) -> std::sync::Arc<Vec<(String, String)>> {
@@ -568,6 +585,7 @@ impl Studio {
                         tasks: vec![],
                         save_compatibility: Default::default(),
                         production: Default::default(),
+                        story_recap: String::new(),
                         nodes: vec![Node {
                             text: "你的第一个故事，从这里开始。".into(),
                             ..Node::new("opening".into(), NodeKind::Ending, 0)
@@ -623,23 +641,23 @@ impl Studio {
         egui::TopBottomPanel::top(egui::Id::new(("toolbar", &self.path)))
             .frame(
                 egui::Frame::new()
-                    .fill(BASE)
+                    .fill(ctx.style().visuals.extreme_bg_color)
                     .inner_margin(egui::Margin::symmetric(20, 12)),
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     let (logo, _) = ui.allocate_exact_size(Vec2::splat(28.), Sense::hover());
-                    ui.painter().rect_filled(logo, 7, ACCENT);
+                    ui.painter().rect_filled(logo, 7, accent(ui));
                     ui.painter().line_segment(
                         [logo.min + Vec2::new(7., 7.), logo.min + Vec2::new(7., 21.)],
-                        Stroke::new(2.0_f32, BASE),
+                        Stroke::new(2.0_f32, ui.visuals().extreme_bg_color),
                     );
                     ui.painter().line_segment(
                         [
                             logo.min + Vec2::new(7., 21.),
                             logo.min + Vec2::new(21., 21.),
                         ],
-                        Stroke::new(2.0_f32, BASE),
+                        Stroke::new(2.0_f32, ui.visuals().extreme_bg_color),
                     );
                     ui.label(RichText::new("OpenGalgame").size(21.).strong());
                     ui.separator();
@@ -649,7 +667,7 @@ impl Studio {
                     )
                     .on_hover_text(&self.project.title);
                     if self.dirty() {
-                        badge(ui, "未保存", ACCENT);
+                        badge(ui, "未保存", accent(ui));
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if tool(ui, Icon::Export, "导出游戏", true)
@@ -770,7 +788,7 @@ impl Studio {
         egui::TopBottomPanel::bottom(egui::Id::new(("status", &self.path)))
             .frame(
                 egui::Frame::new()
-                    .fill(BASE)
+                    .fill(ctx.style().visuals.extreme_bg_color)
                     .inner_margin(egui::Margin::symmetric(18, 9)),
             )
             .show(ctx, |ui| {
@@ -814,7 +832,11 @@ impl Studio {
             .default_width(self.v5.layout.left_width)
             .min_width(205.)
             .max_width(500.)
-            .frame(egui::Frame::new().fill(PANEL).inner_margin(14))
+            .frame(
+                egui::Frame::new()
+                    .fill(ctx.style().visuals.panel_fill)
+                    .inner_margin(14),
+            )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("剧情目录").size(18.).strong());
@@ -879,7 +901,7 @@ impl Studio {
                             let i = self.filter_rows[row];
                             let node = self.project.nodes[i].clone();
                             let selected = self.selected == i;
-                            let color = kind_color(node.kind);
+                            let color = kind_color(ui, node.kind);
                             let mut job = egui::text::LayoutJob::default();
                             job.append(
                                 &node.title,
@@ -918,14 +940,14 @@ impl Studio {
                                 [ui.available_width(), 62.],
                                 egui::Button::new(job)
                                     .fill(if selected {
-                                        Color32::from_rgb(55, 53, 82)
+                                        ui.visuals().selection.bg_fill
                                     } else {
-                                        PANEL
+                                        ui.visuals().panel_fill
                                     })
                                     .stroke(Stroke::new(
                                         1.0_f32,
                                         if selected {
-                                            ACCENT
+                                            accent(ui)
                                         } else {
                                             Color32::from_rgb(48, 61, 80)
                                         },
@@ -1012,12 +1034,12 @@ impl Studio {
         self.v5.layout.left_width = panel.response.rect.width();
     }
     fn inspector(&mut self, ctx: &egui::Context) {
-        let panel = egui::SidePanel::right(egui::Id::new(("properties",self.path.clone()))).resizable(true).default_width(self.v5.layout.right_width).min_width(285.).max_width(900.).frame(egui::Frame::new().fill(PANEL).inner_margin(18)).show(ctx,|ui| {
-            ui.horizontal(|ui|{ui.label(RichText::new("编辑场景").size(18.).strong());if let Some(n)=self.project.nodes.get(self.selected){badge(ui,n.kind.label(),kind_color(n.kind));}});
+        let panel = egui::SidePanel::right(egui::Id::new(("properties",self.path.clone()))).resizable(true).default_width(self.v5.layout.right_width).min_width(285.).max_width(900.).frame(egui::Frame::new().fill(ctx.style().visuals.panel_fill).inner_margin(18)).show(ctx,|ui| {
+            ui.horizontal(|ui|{ui.label(RichText::new("编辑场景").size(18.).strong());if let Some(n)=self.project.nodes.get(self.selected){badge(ui,n.kind.label(),kind_color(ui, n.kind));}});
             ui.add_space(8.);
             if self.project.nodes.is_empty(){ui.label("在左侧添加第一个节点。");return;}
             self.selected=self.selected.min(self.project.nodes.len()-1);
-            if self.runtime.is_some(){ui.colored_label(ACCENT,"试玩中。停止试玩后可编辑。");}
+            if self.runtime.is_some(){ui.colored_label(accent(ui),"试玩中。停止试玩后可编辑。");}
             let node_id=self.project.nodes[self.selected].id.clone();
             let inline_errors:Vec<_>=self.issues.iter().filter(|i|i.node.as_deref()==Some(&node_id)&&i.severity==Severity::Error).map(|i|i.message.clone()).collect();
             for message in inline_errors{ui.colored_label(BAD,message);}
@@ -1045,8 +1067,8 @@ impl Studio {
                     NodeKind::Choice=>{
                         section_label(ui,"玩家选项");let mut remove=None;
                         for (index,choice) in node.choices.iter_mut().enumerate(){ui.push_id(index,|ui|{
-                            egui::Frame::new().fill(BASE).inner_margin(12).corner_radius(7).stroke(Stroke::new(1.0_f32,Color32::from_rgb(53,66,88))).show(ui,|ui|{
-                                ui.horizontal(|ui|{badge(ui,&format!("选项 {}",index+1),ACCENT);ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{if ui.small_button("移除").clicked(){remove=Some(index);}});});
+                            egui::Frame::new().fill(ui.visuals().extreme_bg_color).inner_margin(12).corner_radius(7).stroke(Stroke::new(1.0_f32,Color32::from_rgb(53,66,88))).show(ui,|ui|{
+                                ui.horizontal(|ui|{badge(ui,&format!("选项 {}",index+1),accent(ui));ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{if ui.small_button("移除").clicked(){remove=Some(index);}});});
                                 ui.add(egui::TextEdit::multiline(&mut choice.text).desired_width(f32::INFINITY).desired_rows(2).margin(8));
                                 field_label(ui,"选择后前往");target_combo(ui,"target",&mut choice.target,&targets);
                                 egui::CollapsingHeader::new("条件与变量").id_salt("conditions").default_open(choice.condition.is_some()||choice.set_flag.is_some()).show(ui,|ui|{
@@ -1444,7 +1466,7 @@ impl Studio {
                                 .get(self.selected)
                                 .is_some_and(|s| s.id == n.id)
                             {
-                                ACCENT
+                                accent(ui)
                             } else {
                                 Color32::from_rgb(112, 129, 155)
                             };
@@ -1490,7 +1512,7 @@ impl Studio {
                                 let width = text.chars().count() as f32 * 12. * zoom + 16.;
                                 let label =
                                     Rect::from_center_size(pos, Vec2::new(width, 24. * zoom));
-                                painter.rect_filled(label, 4, BASE);
+                                painter.rect_filled(label, 4, ui.visuals().extreme_bg_color);
                                 painter.text(
                                     pos,
                                     egui::Align2::CENTER_CENTER,
@@ -1525,9 +1547,9 @@ impl Studio {
                         rect,
                         7,
                         if selected {
-                            Color32::from_rgb(57, 53, 87)
+                            ui.visuals().selection.bg_fill
                         } else {
-                            PANEL
+                            ui.visuals().panel_fill
                         },
                     );
                     painter.rect_stroke(
@@ -1542,7 +1564,7 @@ impl Studio {
                             } else if cycles.contains(&node.id) {
                                 WARN
                             } else if selected {
-                                ACCENT
+                                accent(ui)
                             } else {
                                 Color32::from_rgb(67, 84, 108)
                             },
@@ -1552,7 +1574,7 @@ impl Studio {
                     painter.rect_filled(
                         Rect::from_min_size(rect.min, Vec2::new(4. * zoom, rect.height())),
                         3,
-                        kind_color(node.kind),
+                        kind_color(ui, node.kind),
                     );
                     painter.text(
                         rect.min + Vec2::new(12., 12.) * zoom,
@@ -1567,7 +1589,7 @@ impl Studio {
                             }
                         ),
                         FontId::proportional((12. * zoom).max(10.)),
-                        kind_color(node.kind),
+                        kind_color(ui, node.kind),
                     );
                     painter.text(
                         rect.min + Vec2::new(12., 37.) * zoom,
@@ -1633,7 +1655,11 @@ impl Studio {
                     } else {
                         "实时预览"
                     },
-                    if self.runtime.is_some() { GOOD } else { ACCENT },
+                    if self.runtime.is_some() {
+                        GOOD
+                    } else {
+                        accent(ui)
+                    },
                 );
             });
         });
@@ -1785,7 +1811,7 @@ impl Studio {
             ui.add_space(14.);
             for (key, value) in &mut self.project.flags {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(key).color(ACCENT));
+                    ui.label(RichText::new(key).color(accent(ui)));
                     ui.checkbox(value, "初始值为真");
                 });
             }
@@ -1829,7 +1855,7 @@ impl Studio {
         egui::ScrollArea::vertical().show(ui, |ui| {
             for (severity, node, message) in rows {
                 egui::Frame::new()
-                    .fill(PANEL)
+                    .fill(ui.visuals().panel_fill)
                     .inner_margin(14)
                     .corner_radius(5)
                     .show(ui, |ui| {
@@ -1837,7 +1863,7 @@ impl Studio {
                             if severity == Severity::Error {
                                 BAD
                             } else {
-                                ACCENT
+                                accent(ui)
                             },
                             format!(
                                 "{}：{}",
@@ -1897,7 +1923,7 @@ impl Studio {
             }
         }
         ui.separator();
-        ui.label(RichText::new("OpenGalgame 0.4 · Rust 原生视觉小说引擎").color(ACCENT));
+        ui.label(RichText::new("OpenGalgame · Rust 原生视觉小说引擎").color(accent(ui)));
         ui.collapsing("存档兼容与节点迁移",|ui|{
             ui.label("调整对白、图片、布局和新增未经过的章节可沿用 0.3 存档。改动已经过节点的类型、跳转、条件或变量时会阻止读取，并说明原因。");
             ui.label("使用节点「更新标识」会自动记录迁移。手动填写可用于删除旧节点后指定替代节点；迁移仍会检查控制流程。");
@@ -1923,7 +1949,7 @@ impl Studio {
                     ("写对白与选择","左侧添加节点，右侧填写标题、画面、发言人和正文。对白指定下一场景，选择设置各选项的目标。"),
                     ("串联故事","通过右侧「节点标识与操作」设置起点。分支图可缩放、拖动和自动整理。"),
                     ("测试并导出","F5 从头试玩；当前节点试玩使用变量初始值。检查没有错误后，导出完整的 Windows 游戏目录。")
-                ] {ui.label(RichText::new(title).strong().color(ACCENT));ui.label(text);ui.add_space(6.);}
+                ] {ui.label(RichText::new(title).strong().color(accent(ui)));ui.label(text);ui.add_space(6.);}
                 ui.separator();ui.label("Ctrl+S 保存  ·  Ctrl+Z 撤销  ·  Ctrl+Y 重做  ·  F5 试玩");
                 ui.label("试玩中：空格继续、左方向键回退、数字键选择、Esc 打开存档。");
             });
@@ -1940,7 +1966,7 @@ impl Studio {
                     ui.label(RichText::new(&self.project.title).size(24.).color(GOOD));
                     ui.label("现在可以在 Windows 上独立游玩，无需安装 Rust 或编辑器。");
                     ui.add_space(10.);
-                    ui.label(RichText::new(path.display().to_string()).color(ACCENT));
+                    ui.label(RichText::new(path.display().to_string()).color(accent(ui)));
                     ui.separator();
                     ui.label("分享时请发送整个文件夹，包含 Game.exe、game.json 和 assets。");
                     if tool(ui, Icon::Folder, "打开导出目录", true).clicked()
@@ -2028,7 +2054,7 @@ impl Studio {
                             let ids: Vec<_> = r.history.iter().map(|s| s.node.clone()).collect();
                             for id in ids {
                                 if let Some(n) = self.project.node(&id).cloned() {
-                                    ui.colored_label(ACCENT, &n.title);
+                                    ui.colored_label(accent(ui), &n.title);
                                     ui.label(&n.text);
                                     if n.direction.voice.is_some()
                                         && ui.button("重播这句配音").clicked()
@@ -2184,14 +2210,22 @@ impl eframe::App for Studio {
         }
         if self.player_only && self.advanced.title_screen {
             egui::CentralPanel::default()
-                .frame(egui::Frame::new().fill(BASE))
+                .frame(egui::Frame::new().fill(ctx.style().visuals.extreme_bg_color))
                 .show(ctx, |ui| self.title_ui(ui));
         } else if self.player_only {
             egui::CentralPanel::default()
-                .frame(egui::Frame::new().fill(BASE).inner_margin(16))
+                .frame(
+                    egui::Frame::new()
+                        .fill(ctx.style().visuals.extreme_bg_color)
+                        .inner_margin(16),
+                )
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(&self.project.title).color(ACCENT).size(18.));
+                        ui.label(
+                            RichText::new(&self.project.title)
+                                .color(accent(ui))
+                                .size(18.),
+                        );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.button("菜单  Esc").clicked() {
                                 self.saves_open = true;
@@ -2232,7 +2266,11 @@ impl eframe::App for Studio {
                 self.inspector(ctx);
             }
             egui::CentralPanel::default()
-                .frame(egui::Frame::new().fill(BASE).inner_margin(18))
+                .frame(
+                    egui::Frame::new()
+                        .fill(ctx.style().visuals.extreme_bg_color)
+                        .inner_margin(18),
+                )
                 .show(ctx, |ui| {
                     if self.section == Section::Script {
                         if self.advanced.focus && self.runtime.is_none() {
@@ -2413,17 +2451,18 @@ enum Icon {
     Export,
 }
 fn tool(ui: &mut egui::Ui, icon: Icon, label: &str, primary: bool) -> egui::Response {
+    let fill = if primary {
+        accent(ui)
+    } else {
+        ui.visuals().faint_bg_color
+    };
+    let color = if primary { text_on(fill) } else { INK };
     let response = ui.add(
-        egui::Button::new(RichText::new(format!("     {label}")).color(if primary {
-            BASE
-        } else {
-            INK
-        }))
-        .min_size(Vec2::new(0., 36.))
-        .corner_radius(6)
-        .fill(if primary { ACCENT } else { FIELD }),
+        egui::Button::new(RichText::new(format!("     {label}")).color(color))
+            .min_size(Vec2::new(0., 36.))
+            .corner_radius(6)
+            .fill(fill),
     );
-    let color = if primary { BASE } else { INK };
     let origin = response.rect.left_center() + Vec2::new(15., 0.);
     let s = Stroke::new(1.7_f32, color);
     let p = ui.painter();
@@ -2522,10 +2561,10 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
             ui.label(RichText::new(text).size(12.).color(color));
         });
 }
-fn kind_color(kind: NodeKind) -> Color32 {
+fn kind_color(ui: &egui::Ui, kind: NodeKind) -> Color32 {
     match kind {
         NodeKind::Dialogue => Color32::from_rgb(155, 187, 231),
-        NodeKind::Choice => ACCENT,
+        NodeKind::Choice => accent(ui),
         NodeKind::Ending => GOOD,
     }
 }

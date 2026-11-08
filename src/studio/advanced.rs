@@ -438,7 +438,7 @@ impl Studio {
                         format!("{} 的输出 {}", node.title, index + 1),
                     )
                 });
-                ui.painter().circle_filled(output, 6., ACCENT);
+                ui.painter().circle_filled(output, 6., accent(ui));
                 if r.drag_started() {
                     self.advanced.link_drag = Some(port.clone());
                     self.advanced.link_active = true;
@@ -549,13 +549,14 @@ impl Studio {
                 portrait: None,
                 expressions: Default::default(),
                 tags: String::new(),
+                profile: Default::default(),
             });
         }
         egui::ScrollArea::vertical().show(ui, |ui| {
             for index in 0..self.project.characters.len() {
                 ui.push_id(index, |ui| {
                     egui::Frame::new()
-                        .fill(PANEL)
+                        .fill(ui.visuals().panel_fill)
                         .inner_margin(18)
                         .corner_radius(7)
                         .show(ui, |ui| {
@@ -738,7 +739,7 @@ impl Studio {
                     {
                         ui.push_id(i, |ui| {
                             egui::Frame::new()
-                                .fill(PANEL)
+                                .fill(ui.visuals().panel_fill)
                                 .inner_margin(14)
                                 .corner_radius(7)
                                 .show(ui, |ui| {
@@ -824,7 +825,7 @@ impl Studio {
                 let asset = self.project.audio[i].clone();
                 ui.push_id(i, |ui| {
                     egui::Frame::new()
-                        .fill(PANEL)
+                        .fill(ui.visuals().panel_fill)
                         .inner_margin(14)
                         .corner_radius(7)
                         .show(ui, |ui| {
@@ -941,7 +942,11 @@ impl Studio {
         child.label(RichText::new(&self.project.author).color(accent));
         child.add_space(35.);
         if child
-            .add_sized([250., 46.], egui::Button::new("开始新的故事").fill(accent))
+            .add_sized(
+                [250., 46.],
+                egui::Button::new(RichText::new("开始新的故事").color(text_on(accent)))
+                    .fill(accent),
+            )
             .clicked()
         {
             self.begin(false);

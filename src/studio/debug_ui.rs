@@ -184,7 +184,11 @@ impl Studio {
                                             ui.add_sized(
                                                 [125., 32.],
                                                 egui::Label::new(RichText::new(&key).color(
-                                                    if value == initial { MUTED } else { ACCENT },
+                                                    if value == initial {
+                                                        MUTED
+                                                    } else {
+                                                        accent(ui)
+                                                    },
                                                 ))
                                                 .wrap(),
                                             );
@@ -289,7 +293,7 @@ impl Studio {
                         .join("、")
                 ));
                 if !self.v4.debug.message.is_empty() {
-                    ui.colored_label(ACCENT, &self.v4.debug.message);
+                    ui.colored_label(accent(ui), &self.v4.debug.message);
                 }
             });
         self.v4.debug.open &= open;

@@ -9,6 +9,7 @@
 - serde / serde_json：MIT OR Apache-2.0，https://github.com/serde-rs
 - anyhow：MIT OR Apache-2.0，https://github.com/dtolnay/anyhow
 - sha2：MIT OR Apache-2.0，https://github.com/RustCrypto/hashes
+- reqwest：MIT OR Apache-2.0，https://github.com/seanmonstar/reqwest
 - rodio 0.21.1：MIT OR Apache-2.0，https://github.com/RustAudio/rodio
 - cpal：Apache-2.0，https://github.com/RustAudio/cpal
 - Symphonia 音频解码：MPL-2.0，https://github.com/pdeljanov/Symphonia

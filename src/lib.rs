@@ -15,4 +15,5 @@ pub mod debugger;
 pub mod logic;
 pub mod production;
 pub mod spreadsheet;
+pub mod story_tools;
 pub mod testing;

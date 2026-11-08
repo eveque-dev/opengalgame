@@ -179,7 +179,9 @@ pub fn export_game(
         "导出目录不是空目录，请选择新目录，避免覆盖文件"
     );
     fs::create_dir_all(destination)?;
-    clone_project(project, base, &destination.join("game.json"))?;
+    let mut game = project.clone();
+    game.clear_author_notes();
+    clone_project(&game, base, &destination.join("game.json"))?;
     fs::copy(executable, destination.join("Game.exe"))?;
     if let Some(icon) = &project.presentation.icon {
         crate::native_icon::set_exe_icon(&destination.join("Game.exe"), &safe_asset(base, icon)?)?;

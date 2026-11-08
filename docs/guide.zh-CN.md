@@ -89,3 +89,5 @@ target/release/opengalgame.exe --export examples/long-form/project.json exports/
 
 
 0.5 新增演出编排、逐句配音、四类声音、主题、素材维护与分支回归测试。项目中心可打开《潮汐剧场》体验；详细操作见 [演出与制作指南](production-v5.md)。
+
+0.7 在工作台顶部提供「AI 创作」和「外观」。填入自己的 API 密钥后，可以按需带上人物设定和前情，润色对白、生成可编辑分支并检查全剧，也可以保存自定义编辑器配色。[AI 创作与编辑器配色](ai-assistant.md)
