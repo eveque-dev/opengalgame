@@ -16,7 +16,7 @@ OpenGalgame 是一款面向视觉小说创作者的 Windows 可视化编辑器�
 
 ## 从样例开始
 
-下载 `opengalgame-v0.8.0-windows-x64.zip`，解压后双击 `opengalgame.exe`。在项目中心新建双结局模板，或打开 `examples/tidal-stage/project.json`。这个《潮汐剧场》样例包含四个结局、十三段中文配音和可重跑的路线用例。
+下载 `opengalgame-v0.8.1-windows-x64.zip`，解压后双击 `opengalgame.exe`。在项目中心新建双结局模板，或打开 `examples/tidal-stage/project.json`。这个《潮汐剧场》样例包含四个结局、十三段中文配音和可重跑的路线用例。
 
 1. **准备舞台。** 导入背景、立绘和表情。导入人物图片时会识别符合条件的纯色底，并将边缘背景转为透明，保留原画布和源文件。
 2. **写对白和选择。** 在剧本表格连续编辑，用分支图连接节点。整数、布尔和文本变量可控制选项出现条件，并记录玩家选择。

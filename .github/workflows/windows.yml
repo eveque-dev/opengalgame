@@ -43,7 +43,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:ANDROID_NDK_HOME = Join-Path $env:ANDROID_HOME 'ndk/28.2.13676358'
           if (!(Test-Path (Join-Path $env:ANDROID_NDK_HOME 'source.properties'))) {
-            sdkmanager --install "ndk;28.2.13676358"
+            $sdkManager = Join-Path $env:ANDROID_HOME 'cmdline-tools/latest/bin/sdkmanager.bat'
+            & $sdkManager --install 'ndk;28.2.13676358' "--sdk_root=$env:ANDROID_HOME"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           python tools/build_android.py
