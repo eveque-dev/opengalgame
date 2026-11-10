@@ -12,11 +12,11 @@
 
 OpenGalgame 是一款面向视觉小说创作者的 Windows 可视化编辑器。用人物、对白和选择搭建故事，在同一工作台编排演出、试玩各条路线，并发布为 Windows 或 Android 游戏。编辑器与独立播放器共用 Rust 剧情内核。
 
-[下载编辑器](https://github.com/eveque-dev/opengalgame/releases/latest) · [中文指南](docs/guide.zh-CN.md) · [导出与 Android 配置](docs/distribution.md) · [引擎架构](docs/architecture.md)
+[下载 v0.8.2 完整 Windows 便携包](https://github.com/eveque-dev/opengalgame/releases/download/v0.8.2/opengalgame-v0.8.2-windows-x64.zip) · [发布说明](https://github.com/eveque-dev/opengalgame/releases/tag/v0.8.2) · [中文指南](docs/guide.zh-CN.md) · [引擎架构](docs/architecture.md)
 
 ## 从样例开始
 
-下载 `opengalgame-v0.8.1-windows-x64.zip`，解压后双击 `opengalgame.exe`。在项目中心新建双结局模板，或打开 `examples/tidal-stage/project.json`。这个《潮汐剧场》样例包含四个结局、十三段中文配音和可重跑的路线用例。
+下载 Windows 编辑器便携 ZIP，解压后双击 `opengalgame.exe`。在项目中心新建双结局模板，或打开 `examples/tidal-stage/project.json`。这个《潮汐剧场》样例包含四个结局、十三段中文配音和可重跑的路线用例。
 
 1. **准备舞台。** 导入背景、立绘和表情。导入人物图片时会识别符合条件的纯色底，并将边缘背景转为透明，保留原画布和源文件。
 2. **写对白和选择。** 在剧本表格连续编辑，用分支图连接节点。整数、布尔和文本变量可控制选项出现条件，并记录玩家选择。
@@ -32,7 +32,13 @@ OpenGalgame 是一款面向视觉小说创作者的 Windows 可视化编辑器�
 | Windows ZIP | 一个 `.zip`，含 `Game.exe`、`game.json` 和素材 | 解压后双击 `Game.exe` |
 | Android APK | 一个已签名的 `.apk`，含 ARM64 与 x86_64 播放器 | 在 Android 8.0 及以上的 64 位设备上安装 |
 
-Windows 编辑器与播放器面向 Windows 10/11 x64，需要可用的 OpenGL 3.3 驱动。发布页同时提供独立编辑器 EXE、便携包、样例和 SHA-256 校验文件。Android 导出需用完整便携包，并在创作电脑安装 JDK 17、Android SDK Platform 35 和 Build-Tools 35 或更新版本。[查看安装、签名和命令行用法](docs/distribution.md)
+Windows 编辑器与播放器面向 Windows 10/11 x64，需要可用的 OpenGL 3.3 驱动。
+
+### 一键准备 Android 导出
+
+使用完整 Windows 便携包，打开项目后选择「导出游戏 → Android APK」。编辑器会识别已有的 JDK 17 或更新版本、Android SDK Platform 35 和 Build-Tools 35 或更新版本。环境齐全时可直接选择保存位置。
+
+缺少组件时，窗口会列出待安装项及预计下载大小。首次安装 SDK 组件需要确认许可。点击「安装并继续导出」后，编辑器会校验下载并将组件安装到当前用户目录，完成后自动弹出保存窗口。之后的项目会复用这套工具。 [安装、签名和命令行用法](docs/distribution.md)
 
 ## 创作工作台
 

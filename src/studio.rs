@@ -9,6 +9,8 @@ use opengalgame::{
     runtime::*,
 };
 mod advanced;
+#[cfg(windows)]
+mod apk_setup;
 mod checkpoints;
 mod debug_ui;
 mod direction_ui;
@@ -706,6 +708,10 @@ impl Studio {
                             self.v5.audit =
                                 opengalgame::assets::audit(&self.project, self.base()).ok();
                             self.v5.export_preflight = true;
+                            #[cfg(windows)]
+                            {
+                                self.v5.apk_setup = Default::default();
+                            }
                         }
                         if self.runtime.is_some() {
                             if tool(ui, Icon::Stop, "停止试玩", false).clicked() {

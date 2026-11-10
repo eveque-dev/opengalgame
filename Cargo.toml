@@ -1,6 +1,6 @@
 [package]
 name = "opengalgame"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2024"
 description = "Visual novel editor for Windows with Windows and Android players"
 license = "MIT"
@@ -24,7 +24,7 @@ zip = { version = "=4.6.1", default-features = false, features = ["deflate-flate
 [target.'cfg(windows)'.dependencies]
 eframe = { version = "=0.33.3", default-features = false, features = ["accesskit"] }
 rfd = { version = "=0.17.2", default-features = false }
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "native-tls", "system-proxy"] }
 windows-sys = { version = "0.61", features = ["Win32_System_LibraryLoader", "Win32_Foundation", "Win32_Security_Cryptography"] }
 
 [target.'cfg(target_os = "android")'.dependencies]

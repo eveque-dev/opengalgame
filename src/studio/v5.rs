@@ -49,6 +49,8 @@ pub(super) struct V5 {
     pub file_stem: String,
     pub export_preflight: bool,
     pub export_format: Format,
+    #[cfg(windows)]
+    pub apk_setup: super::apk_setup::Panel,
 }
 impl V5 {
     pub fn layout_path(path: &Path) -> PathBuf {
@@ -106,6 +108,8 @@ impl V5 {
             file_stem: String::new(),
             export_preflight: false,
             export_format: Format::default(),
+            #[cfg(windows)]
+            apk_setup: Default::default(),
         }
     }
 }

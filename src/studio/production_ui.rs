@@ -721,18 +721,29 @@ impl Studio {
             let mut proceed = false;
             let mut cancel = false;
             egui::Modal::new(egui::Id::new("export_preflight")).show(ctx, |ui| {
+                ui.set_max_width(560.);
                 ui.heading("导出前检查");
-                ui.horizontal_wrapped(|ui| {
-                    ui.selectable_value(&mut self.v5.export_format, Format::Exe, "Windows EXE");
-                    ui.selectable_value(&mut self.v5.export_format, Format::Zip, "Windows ZIP");
-                    ui.selectable_value(&mut self.v5.export_format, Format::Apk, "Android APK");
+                let switching_allowed = {
+                    #[cfg(windows)]
+                    {
+                        !self.v5.apk_setup.installing()
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        true
+                    }
+                };
+                ui.add_enabled_ui(switching_allowed, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.selectable_value(&mut self.v5.export_format, Format::Exe, "Windows EXE");
+                        ui.selectable_value(&mut self.v5.export_format, Format::Zip, "Windows ZIP");
+                        ui.selectable_value(&mut self.v5.export_format, Format::Apk, "Android APK");
+                    });
                 });
                 ui.label(match self.v5.export_format {
                     Format::Exe => "单个 .exe 内含播放器、剧本和素材，双击游玩。",
                     Format::Zip => "保留 Game.exe、game.json 与素材目录，解压后游玩。",
-                    Format::Apk => {
-                        "适用于 Android 8.0 及以上的 64 位设备。导出需 JDK 及 Android SDK。"
-                    }
+                    Format::Apk => "适用于 Android 8.0 及以上的 64 位设备。",
                 });
                 if let Some(a) = &self.v5.audit {
                     ui.label(format!(
@@ -766,11 +777,27 @@ impl Studio {
                             format!("有 {missing} 个素材缺失，请先在素材维护中修复。"),
                         );
                     }
-                    ui.horizontal(|ui| {
-                        proceed = ui
-                            .add_enabled(missing == 0, egui::Button::new("选择保存位置"))
+                    #[cfg(windows)]
+                    let (ready, can_return) = if self.v5.export_format == Format::Apk {
+                        use super::apk_setup::Outcome;
+                        let outcome = self.v5.apk_setup.show(ui, missing == 0);
+                        proceed = outcome == Outcome::Continue;
+                        (
+                            missing == 0 && outcome == Outcome::Ready,
+                            !self.v5.apk_setup.installing(),
+                        )
+                    } else {
+                        (missing == 0, true)
+                    };
+                    #[cfg(not(windows))]
+                    let (ready, can_return) = (missing == 0, true);
+                    ui.horizontal_wrapped(|ui| {
+                        proceed |= ui
+                            .add_enabled(ready, egui::Button::new("选择保存位置"))
                             .clicked();
-                        cancel = ui.button("返回编辑").clicked();
+                        cancel = ui
+                            .add_enabled(can_return, egui::Button::new("返回编辑"))
+                            .clicked();
                     });
                 } else {
                     ui.colored_label(BAD, "无法读取素材清单，请在素材维护中刷新。");

@@ -4,6 +4,9 @@ use crate::{model::Project, paths::data_directory};
 use sha2::{Digest, Sha256};
 use std::{os::windows::process::CommandExt, process::Command};
 
+mod setup;
+pub use setup::{Dependency, InstallProgress, Setup};
+
 const ABIS: [&str; 2] = ["arm64-v8a", "x86_64"];
 const MIN_SDK: u32 = 26;
 const TARGET_SDK: u32 = 35;
@@ -16,71 +19,9 @@ pub struct Tools {
     runtime: PathBuf,
 }
 
-fn java_tool(name: &str) -> PathBuf {
-    let name = format!("{name}.exe");
-    if let Some(home) = std::env::var_os("JAVA_HOME") {
-        let file = PathBuf::from(home).join("bin").join(&name);
-        if file.is_file() {
-            return file;
-        }
-    }
-    PathBuf::from(name)
-}
-
 impl Tools {
     pub fn find(editor: &Path) -> Result<Self> {
-        let sdk = ["ANDROID_HOME", "ANDROID_SDK_ROOT"]
-            .into_iter()
-            .filter_map(std::env::var_os)
-            .map(PathBuf::from)
-            .chain(
-                std::env::var_os("LOCALAPPDATA")
-                    .map(|path| PathBuf::from(path).join("Android/Sdk")),
-            )
-            .find(|path| path.join("build-tools").is_dir())
-            .context("请安装 Android SDK，并设置 ANDROID_HOME")?;
-        let build = fs::read_dir(sdk.join("build-tools"))?
-            .filter_map(Result::ok)
-            .filter_map(|entry| {
-                let name = entry.file_name();
-                let version = name
-                    .to_str()?
-                    .split('.')
-                    .map(str::parse::<u32>)
-                    .collect::<std::result::Result<Vec<_>, _>>()
-                    .ok()?;
-                let path = entry.path();
-                (version.first().copied()? >= 35
-                    && ["aapt2.exe", "zipalign.exe", "lib/apksigner.jar"]
-                        .iter()
-                        .all(|file| path.join(file).is_file()))
-                .then_some((version, path))
-            })
-            .max_by(|(a, _), (b, _)| a.cmp(b))
-            .map(|(_, path)| path)
-            .context("Android SDK 缺少 Build-Tools 35 或以上版本")?;
-        let platform = sdk.join(format!("platforms/android-{TARGET_SDK}/android.jar"));
-        ensure!(
-            platform.is_file(),
-            "Android SDK 缺少 Android {TARGET_SDK} 平台"
-        );
-        let runtime = std::env::var_os("OPENGALGAME_ANDROID_RUNTIME")
-            .map(PathBuf::from)
-            .into_iter()
-            .chain(editor.parent().map(|path| path.join("android-runtime")))
-            .find(|path| {
-                ABIS.iter().all(|abi| path.join(abi).join("libopengalgame.so").is_file())
-                    && fs::read_to_string(path.join("version.txt"))
-                        .is_ok_and(|version| version.trim() == env!("CARGO_PKG_VERSION"))
-            })
-            .context("未找到此版本的 Android 播放器，请使用完整编辑器 ZIP，或配置 OPENGALGAME_ANDROID_RUNTIME")?;
-        Ok(Self {
-            build,
-            platform,
-            java: java_tool("java"),
-            keytool: java_tool("keytool"),
-            runtime,
-        })
+        Setup::detect(editor)?.into_tools()
     }
 
     pub(super) fn build(

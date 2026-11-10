@@ -12,26 +12,27 @@
 
 ## Android 导出环境
 
-1. 下载并解压完整 Windows 编辑器 ZIP，保留 `opengalgame.exe` 同目录下的 `android-runtime/`。
-2. 安装 JDK 17，确保 `JAVA_HOME` 或 PATH 指向该 JDK。安装 Android SDK Platform 35 和 Build-Tools 35.0.0 或更高版本。
-3. SDK 如果放在默认 Android Studio 路径之外，在 Windows 环境变量中设置 `ANDROID_HOME` 为 SDK 根目录。打开编辑器，选择「Android APK」。
+解压完整 Windows 编辑器 ZIP，保留同目录的 `android-runtime/`。打开项目，在「导出游戏」里选「Android APK」。
 
-已安装 Android 命令行工具时，可用以下命令安装所需组件。导出时无需为每部作品重新编译播放器。 [Android SDK 命令行工具](https://developer.android.com/tools/sdkmanager)
+- **环境齐全时**，直接选择保存位置。编辑器会从常见安装目录和已配置路径识别可用的 JDK、Android SDK Platform 35 及 Build-Tools 35 或更新版本。
+- **首次缺少组件时**，编辑器列出待安装项和下载大小。需要 SDK 组件时先阅读并同意 Android SDK 许可，点「安装并继续导出」，安装完就会打开保存对话框。 [Android SDK 许可](https://developer.android.com/studio/terms)
 
-```powershell
-sdkmanager "platforms;android-35" "build-tools;35.0.0"
-```
+下载来自 Eclipse Adoptium 和 Google，编辑器核对 SHA-256，再将缺少的组件安装到当前用户的 OpenGalgame 数据目录 `apk-toolchain/`。安装只需普通用户权限。之后导出会自动复用这些工具。自定义安装路径也可通过已有的 `JAVA_HOME`、`ANDROID_HOME` 或 PATH 识别。
 
 APK 用于直接安装。编辑器会在第一次导出时生成本机签名密钥，位于 `%LOCALAPPDATA%/opengalgame/android-signing/player.p12`。若使用了旧版数据目录，则沿用对应位置。作品包名由项目标识生成。要让后续 APK 覆盖更新并保留存档，请保留原项目标识和这份密钥，迁移机器时私下备份并恢复它。
 
 ## 命令行
 
 ```powershell
+.\opengalgame.exe --apk-check
+.\opengalgame.exe --apk-setup --accept-android-sdk-license
 .\opengalgame.exe --export-exe examples/tidal-stage/project.json exports/潮汐剧场.exe
 .\opengalgame.exe --export-zip examples/tidal-stage/project.json exports/潮汐剧场.zip
 .\opengalgame.exe --export-apk examples/tidal-stage/project.json exports/潮汐剧场.apk
 .\exports\潮汐剧场.exe --verify-bundle
 ```
+
+`--apk-check` 显示当前工具的位置和缺项。用 `--apk-setup` 安装之前，先阅读 SDK 许可。缺少 SDK 组件时，使用 `--accept-android-sdk-license` 表示接受许可。
 
 `--verify-bundle` 会读取 EXE 内嵌的剧本和素材，执行项目校验及分支测试。旧版脚本仍可使用 `--export 项目.json 输出目录` 生成松散的 Windows 游戏目录。
 

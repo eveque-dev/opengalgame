@@ -26,6 +26,34 @@ fn run() -> Result<()> {
     let exe = std::env::current_exe()?;
     let directory = exe.parent().context("无法确定程序位置")?;
     let bundled = directory.join("game.json");
+    if let Some(command @ ("--apk-check" | "--apk-setup")) = args.first().map(String::as_str) {
+        use opengalgame::bundle::apk::{Dependency, InstallProgress, Setup};
+        let setup = if command == "--apk-setup" {
+            let accepted = args.iter().any(|arg| arg == "--accept-android-sdk-license");
+            let cancel = std::sync::atomic::AtomicBool::new(false);
+            Setup::install(&exe, accepted, &cancel, |progress| match progress {
+                InstallProgress::Download {
+                    dependency,
+                    received: 0,
+                } => println!("下载 {}", dependency.label()),
+                InstallProgress::Extract(dependency) => {
+                    println!("已校验，正在解包 {}", dependency.label())
+                }
+                _ => {}
+            })?
+        } else {
+            Setup::detect(&exe)?
+        };
+        for dependency in Dependency::ALL {
+            if let Some(path) = setup.location(dependency) {
+                println!("OK {} {}", dependency.label(), path.display());
+            } else {
+                println!("待安装 {}", dependency.label());
+            }
+        }
+        ensure!(setup.missing().next().is_none(), "APK 环境还未就绪");
+        return Ok(());
+    }
     if args.first().map(String::as_str) == Some("--test") {
         let path = PathBuf::from(
             args.get(1)
