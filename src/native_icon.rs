@@ -1,4 +1,6 @@
-use anyhow::{Result, ensure};
+use anyhow::Result;
+#[cfg(windows)]
+use anyhow::ensure;
 use std::path::Path;
 pub fn icon_png(path: &Path) -> Result<Vec<u8>> {
     let img = image::open(path)?.resize_exact(256, 256, image::imageops::FilterType::Lanczos3);

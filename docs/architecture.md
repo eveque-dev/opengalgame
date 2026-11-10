@@ -15,6 +15,9 @@ OpenGalgame 是 Rust 原生桌面应用，编辑器与独立游戏复用剧情�
 | `src/runtime.rs` | 推进、选项、变量、回退、存档与历史 |
 | `src/authoring.rs` | 对白导入、查找替换、连接与循环检测 |
 | `src/project_io.rs` | 正式保存、备份、素材复制与导出 |
+| `src/portrait.rs` | 识别与移除立绘边缘连通的纯色背景 |
+| `src/bundle.rs` / `src/bundle/apk.rs` | 内嵌素材 EXE、原目录 ZIP 与 APK 构建、签名 |
+| `src/android.rs` | Android NativeActivity 入口、内嵌素材读取与应用数据路径 |
 | `src/recovery.rs` / `src/paths.rs` | 恢复副本、最近项目与旧数据目录兼容 |
 | `src/studio.rs` / `src/studio/advanced.rs` | 编辑器、共用舞台、素材库与玩家菜单 |
 | `src/sound.rs` / `src/native_icon.rs` | 音轨播放与 Windows EXE 资源图标 |
@@ -34,10 +37,11 @@ target/release/opengalgame.exe --hub
 target/release/opengalgame.exe --validate examples/long-form/project.json
 target/release/opengalgame.exe --play examples/long-form/project.json
 target/release/opengalgame.exe --editor examples/long-form/project.json
-target/release/opengalgame.exe --export examples/long-form/project.json exports/MyGame
+target/release/opengalgame.exe --export-exe examples/long-form/project.json exports/MyGame.exe
+target/release/opengalgame.exe --export-zip examples/long-form/project.json exports/MyGame.zip
 ```
 
-导出目录必须不存在或为空。校验或导出失败时返回非零退出码。需要等待进程结束的脚本应使用 `subprocess.run` 或 PowerShell `Start-Process -Wait`。
+导出文件须使用新路径。旧的 `--export` 可继续导出松散目录，目录须不存在或为空。校验或导出失败时返回非零退出码。需要等待进程结束的脚本应使用 `subprocess.run` 或 PowerShell `Start-Process -Wait`。
 
 ## 构建与发布
 
@@ -45,10 +49,11 @@ target/release/opengalgame.exe --export examples/long-form/project.json exports/
 
 ```powershell
 cargo build --release --locked
+python tools/build_android.py
 python tools/package_windows.py
 ```
 
-打包器从 Cargo.toml 读取版本，收集当前 Windows 依赖的许可声明，验证样例与导出结果，再生成编辑器、独立游戏、源码 ZIP 和校验摘要。
+打包器从 Cargo.toml 读取版本，收集 Windows 与 Android 依赖许可，验证样例与导出结果，再生成编辑器、独立游戏、源码 ZIP 和校验摘要。Android 构建依赖与命令见 [发布指南](distribution.md)。
 
 `.github/workflows/windows.yml` 在 Windows runner 上运行格式、静态检查、测试与构建；`v*` 标签触发打包并创建 GitHub Release。自动化令牌仅用于当前仓库的发布，日常 Git 远端使用 SSH。
 

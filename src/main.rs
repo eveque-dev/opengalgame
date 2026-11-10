@@ -1,13 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-mod ai;
-mod ai_ui;
-mod editor_theme;
-mod studio;
-mod workspace;
 use anyhow::{Context, Result, ensure};
 use opengalgame::{
+    bundle::{self, Format},
     model::{Severity, safe_asset, validate},
     project_io::*,
+    studio, workspace,
 };
 use std::path::{Path, PathBuf};
 
@@ -103,22 +100,60 @@ fn run() -> Result<()> {
         );
         return Ok(());
     }
-    if args.first().map(String::as_str) == Some("--export") {
+    let command = args.first().map(String::as_str);
+    if let Some(command @ ("--export" | "--export-exe" | "--export-zip" | "--export-apk")) = command
+    {
         let path = PathBuf::from(args.get(1).context("--export 需要项目路径和新输出目录")?);
         let dest = PathBuf::from(args.get(2).context("--export 需要输出目录")?);
         let p = read_project(&path)?;
-        export_game(&p, path.parent().unwrap_or(Path::new(".")), &exe, &dest)?;
+        let base = path.parent().unwrap_or(Path::new("."));
+        let format = match command {
+            "--export-exe" => Some(Format::Exe),
+            "--export-zip" => Some(Format::Zip),
+            "--export-apk" => Some(Format::Apk),
+            _ => None,
+        };
+        if let Some(format) = format {
+            bundle::export(&p, base, &exe, &dest, format)?;
+        } else {
+            export_game(&p, base, &exe, &dest)?;
+        }
         println!("Exported {}", dest.display());
         return Ok(());
     }
+    let embedded = if command.is_none() || command == Some("--verify-bundle") {
+        bundle::open_exe(&exe)?
+    } else {
+        None
+    };
+    if command == Some("--verify-bundle") {
+        let directory = embedded.as_ref().context("此 EXE 没有内嵌游戏")?;
+        let p = read_project(&directory.path().join("game.json"))?;
+        check_player(&p, directory.path())?;
+        let report = opengalgame::testing::run(&p, 8192);
+        if let Some(path) = args.get(1) {
+            write_json(Path::new(path), &report)?;
+        }
+        ensure!(report.passed(), "内嵌游戏的分支或回归用例执行失败");
+        println!(
+            "PASS: {} nodes, {} endings",
+            p.nodes.len(),
+            report.endings.len()
+        );
+        return Ok(());
+    }
     let mut player = false;
-    let initial = match args.first().map(String::as_str) {
+    let initial = match command {
         Some("--play") => {
             player = true;
             Some(PathBuf::from(args.get(1).context("--play 需要项目路径")?))
         }
         Some("--editor") => Some(PathBuf::from(args.get(1).context("--editor 需要项目路径")?)),
         Some("--hub") => None,
+        None if embedded.is_some() => {
+            player = true;
+            embedded.as_ref().map(|dir| dir.path().join("game.json"))
+        }
         None if bundled.is_file() => {
             player = true;
             Some(bundled)
@@ -133,17 +168,7 @@ fn run() -> Result<()> {
             .canonicalize()
             .context("找不到游戏项目")?;
         let p = read_project(&path)?;
-        let issues = validate(&p, path.parent());
-        ensure!(
-            !issues.iter().any(|i| i.severity == Severity::Error),
-            "游戏项目包含错误：{}",
-            issues
-                .iter()
-                .filter(|i| i.severity == Severity::Error)
-                .map(|i| i.message.as_str())
-                .collect::<Vec<_>>()
-                .join("；")
-        );
+        check_player(&p, path.parent().unwrap_or(Path::new(".")))?;
         Some((p, path))
     } else {
         None
@@ -189,5 +214,20 @@ fn run() -> Result<()> {
         }),
     )
     .map_err(|e| anyhow::anyhow!("无法建立原生窗口或图形上下文：{e}"))?;
+    Ok(())
+}
+
+fn check_player(project: &opengalgame::model::Project, base: &Path) -> Result<()> {
+    let issues = validate(project, Some(base));
+    ensure!(
+        !issues.iter().any(|i| i.severity == Severity::Error),
+        "游戏项目包含错误：{}",
+        issues
+            .iter()
+            .filter(|i| i.severity == Severity::Error)
+            .map(|i| i.message.as_str())
+            .collect::<Vec<_>>()
+            .join("；")
+    );
     Ok(())
 }

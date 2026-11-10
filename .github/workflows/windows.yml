@@ -37,6 +37,16 @@ jobs:
         run: cargo test --locked
       - name: Build Windows executable
         run: cargo build --release --locked
+      - name: Build Android players
+        run: |
+          rustup target add aarch64-linux-android x86_64-linux-android
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:ANDROID_NDK_HOME = Join-Path $env:ANDROID_HOME 'ndk/28.2.13676358'
+          if (!(Test-Path (Join-Path $env:ANDROID_NDK_HOME 'source.properties'))) {
+            sdkmanager --install "ndk;28.2.13676358"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          python tools/build_android.py
       - name: Package and verify archives
         run: python tools/package_windows.py
       - name: Publish tagged release

@@ -1,6 +1,10 @@
-use eframe::egui::{self, Color32, RichText, Stroke};
+use eframe::egui::{self, Color32};
+#[cfg(windows)]
+use eframe::egui::{RichText, Stroke};
+#[cfg(windows)]
 use serde::{Deserialize, Serialize};
 
+#[cfg(windows)]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 struct EditorTheme {
@@ -8,6 +12,7 @@ struct EditorTheme {
     background: [u8; 3],
 }
 
+#[cfg(windows)]
 impl Default for EditorTheme {
     fn default() -> Self {
         Self {
@@ -17,6 +22,7 @@ impl Default for EditorTheme {
     }
 }
 
+#[cfg(windows)]
 impl EditorTheme {
     fn apply(self, ctx: &egui::Context) {
         ctx.style_mut(|style| self.set_visuals(&mut style.visuals));
@@ -70,6 +76,7 @@ impl EditorTheme {
     }
 }
 
+#[cfg(windows)]
 fn blend(a: Color32, b: Color32, amount: f32) -> Color32 {
     let channel = |from: u8, to: u8| {
         (f32::from(from) + (f32::from(to) - f32::from(from)) * amount).round() as u8
@@ -110,11 +117,13 @@ pub fn text_on(fill: Color32) -> Color32 {
     }
 }
 
+#[cfg(windows)]
 pub fn primary_button(ui: &egui::Ui, label: &str) -> egui::Button<'static> {
     let color = accent(ui);
     egui::Button::new(RichText::new(label).color(text_on(color))).fill(color)
 }
 
+#[cfg(windows)]
 pub fn feedback(success: bool) -> Color32 {
     if success {
         Color32::from_rgb(128, 200, 179)
@@ -123,12 +132,14 @@ pub fn feedback(success: bool) -> Color32 {
     }
 }
 
+#[cfg(windows)]
 pub struct Appearance {
     pub open: bool,
     theme: EditorTheme,
     message: Option<(bool, String)>,
 }
 
+#[cfg(windows)]
 impl Appearance {
     fn path() -> std::path::PathBuf {
         opengalgame::paths::data_directory("editor-theme.json")
@@ -210,7 +221,7 @@ impl Appearance {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
 

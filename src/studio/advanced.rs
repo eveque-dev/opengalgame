@@ -7,6 +7,56 @@ use opengalgame::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+#[cfg(all(test, windows))]
+#[test]
+fn background_card_keeps_name_tag_and_actions_on_separate_lines() {
+    use egui::epaint::Shape;
+
+    fn locate(shape: &Shape, text: &str) -> Option<Rect> {
+        match shape {
+            Shape::Text(shape) if shape.galley.text() == text => {
+                Some(shape.galley.rect.translate(shape.pos.to_vec2()))
+            }
+            Shape::Vec(shapes) => shapes.iter().find_map(|shape| locate(shape, text)),
+            _ => None,
+        }
+    }
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/first-light/project.json");
+    let mut project = read_project(&path).unwrap();
+    project.backgrounds.truncate(1);
+    project.backgrounds[0].name = "新背景".into();
+    project.backgrounds[0].id = "background_123456789".into();
+    project.backgrounds[0].tags = "夜晚、海湾".into();
+    let mut studio = Studio::create(project, path, false);
+    for width in [285., 630.] {
+        let ctx = egui::Context::default();
+        configure(&ctx);
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 700.))),
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| studio.background_library(ui));
+            },
+        );
+        let bounds = ["背景名称", "新背景", "标签", "夜晚、海湾", "替换图片"].map(|label| {
+            output
+                .shapes
+                .iter()
+                .find_map(|item| locate(&item.shape, label))
+                .unwrap()
+        });
+        assert!(
+            bounds
+                .windows(2)
+                .all(|pair| pair[0].bottom() <= pair[1].top())
+        );
+        assert!(bounds.iter().all(|rect| rect.right() <= width));
+    }
+}
+
 fn save_age(saved_at: u128) -> String {
     if saved_at == 0 {
         return "旧版存档".into();
@@ -288,7 +338,7 @@ impl Studio {
             .frame(egui::Frame::window(&ctx.style()).fill(Color32::from_rgb(theme.menu[0],theme.menu[1],theme.menu[2])))
             .show(ctx,|ui|{
                 self.game_style(ui);
-                ui.label("存档保存在当前 Windows 用户目录；手动存档附画面缩略图。");
+                ui.label("存档保存在设备本地；手动存档附画面缩略图。");
                 egui::ScrollArea::vertical().show(ui,|ui|{
                     let width=((ui.available_width()-12.*columns.saturating_sub(1) as f32)/columns as f32).max(190.);
                     egui::Grid::new("save_grid").num_columns(columns).spacing(Vec2::new(12.,12.)).show(ui,|ui|{
@@ -599,8 +649,13 @@ impl Studio {
                                             &mut self.project.characters[index].color,
                                         );
                                     });
-                                    if ui.button("导入 / 替换默认立绘").clicked()
-                                        && let Some(file) = self.asset_dialog()
+                                    if ui
+                                        .button("导入 / 替换默认立绘")
+                                        .on_hover_text(
+                                            "导入时自动识别纯色底，已有透明区域的图片会保留原样。",
+                                        )
+                                        .clicked()
+                                        && let Some(file) = self.portrait_dialog()
                                     {
                                         self.project.characters[index].portrait = Some(file);
                                     }
@@ -631,7 +686,7 @@ impl Studio {
                                             }
                                             ui.label(name);
                                             if ui.button("替换").clicked()
-                                                && let Some(file) = self.asset_dialog()
+                                                && let Some(file) = self.portrait_dialog()
                                             {
                                                 self.project.characters[index]
                                                     .expressions
@@ -663,7 +718,7 @@ impl Studio {
                                 ui.label("新增表情时使用图片文件名作为表情名，同名会替换。");
                                 if ui.button("+ 导入表情图片").clicked()
                                     && let Some(source) = rfd::FileDialog::new()
-                                        .add_filter("表情图片", &["png", "jpg", "webp"])
+                                        .add_filter("表情图片", &["png", "jpg", "jpeg", "webp"])
                                         .pick_file()
                                 {
                                     let name = source
@@ -671,7 +726,7 @@ impl Studio {
                                         .unwrap_or_default()
                                         .to_string_lossy()
                                         .to_string();
-                                    match import_asset(self.base(), &source) {
+                                    match import_portrait(self.base(), &source) {
                                         Ok(file) => {
                                             self.project.characters[index]
                                                 .expressions
@@ -727,8 +782,10 @@ impl Studio {
                 self.advanced.background_page += 1;
             }
         });
-        let columns = (ui.available_width() / 300.).floor().max(1.) as usize;
         egui::ScrollArea::vertical().show(ui, |ui| {
+            let available = ui.available_width();
+            let columns = ((available + 16.) / 304.).floor().max(1.) as usize;
+            let width = (available - 28.).clamp(1., 260.);
             egui::Grid::new("background_grid")
                 .num_columns(columns)
                 .spacing([16., 16.])
@@ -743,42 +800,58 @@ impl Studio {
                                 .inner_margin(14)
                                 .corner_radius(7)
                                 .show(ui, |ui| {
-                                    ui.set_width(260.);
-                                    let b = self.project.backgrounds[i].clone();
-                                    if let Some(tex) = self.thumbnail(ui.ctx(), &b.file) {
+                                    ui.vertical(|ui| {
+                                        ui.set_width(width);
+                                        let b = self.project.backgrounds[i].clone();
+                                        let size = Vec2::new(width, width * 9. / 16.);
+                                        if let Some(tex) = self.thumbnail(ui.ctx(), &b.file) {
+                                            ui.add(
+                                                egui::Image::new((tex.id(), size))
+                                                    .fit_to_exact_size(size),
+                                            );
+                                        } else {
+                                            ui.allocate_space(size);
+                                        }
+                                        field_label(ui, "背景名称");
                                         ui.add(
-                                            egui::Image::new((tex.id(), Vec2::new(260., 146.)))
-                                                .fit_to_exact_size(Vec2::new(260., 146.)),
+                                            egui::TextEdit::singleline(
+                                                &mut self.project.backgrounds[i].name,
+                                            )
+                                            .desired_width(f32::INFINITY),
                                         );
-                                    }
-                                    ui.text_edit_singleline(&mut self.project.backgrounds[i].name);
-                                    ui.add(
-                                        egui::TextEdit::singleline(
-                                            &mut self.project.backgrounds[i].tags,
+                                        field_label(ui, "标签");
+                                        ui.add(
+                                            egui::TextEdit::singleline(
+                                                &mut self.project.backgrounds[i].tags,
+                                            )
+                                            .desired_width(f32::INFINITY)
+                                            .hint_text("海湾、夜晚、雨天"),
+                                        );
+                                        let count = self
+                                            .project
+                                            .nodes
+                                            .iter()
+                                            .filter(|n| n.background.as_deref() == Some(&b.id))
+                                            .count();
+                                        let usage = format!("{} · {} 个场景", b.id, count);
+                                        ui.add(
+                                            egui::Label::new(
+                                                RichText::new(&usage).small().color(MUTED),
+                                            )
+                                            .truncate(),
                                         )
-                                        .hint_text("标签：海湾、夜晚、雨天"),
-                                    );
-                                    let count = self
-                                        .project
-                                        .nodes
-                                        .iter()
-                                        .filter(|n| n.background.as_deref() == Some(&b.id))
-                                        .count();
-                                    ui.label(
-                                        RichText::new(format!("{} · {} 个场景", b.id, count))
-                                            .small()
-                                            .color(MUTED),
-                                    );
-                                    ui.horizontal(|ui| {
-                                        if ui.button("替换图片").clicked()
-                                            && let Some(file) = self.asset_dialog()
-                                        {
-                                            self.project.backgrounds[i].file = file;
-                                        }
-                                        if ui.button("移除…").clicked() {
-                                            self.advanced.delete_asset =
-                                                Some(("background".into(), b.id));
-                                        }
+                                        .on_hover_text(usage);
+                                        ui.horizontal_wrapped(|ui| {
+                                            if ui.button("替换图片").clicked()
+                                                && let Some(file) = self.asset_dialog()
+                                            {
+                                                self.project.backgrounds[i].file = file;
+                                            }
+                                            if ui.button("移除…").clicked() {
+                                                self.advanced.delete_asset =
+                                                    Some(("background".into(), b.id));
+                                            }
+                                        });
                                     });
                                 });
                         });
@@ -929,9 +1002,29 @@ impl Studio {
             }),
         ));
         self.game_style(&mut child);
+        if cfg!(target_os = "android") {
+            egui::ScrollArea::vertical()
+                .max_height(panel.height())
+                .show(&mut child, |ui| self.title_controls(ui, &theme, accent));
+        } else {
+            self.title_controls(&mut child, &theme, accent);
+        }
+    }
+    fn title_controls(
+        &mut self,
+        child: &mut egui::Ui,
+        theme: &opengalgame::production::GameTheme,
+        accent: Color32,
+    ) {
+        let compact = cfg!(target_os = "android");
+        let button_width = child.available_width().clamp(48., 250.);
+        let button_height: f32 = if compact { 48. } else { 42. };
         child.label(
             RichText::new(&self.project.title)
-                .font(FontId::new(46., self.v5.font_family.clone()))
+                .font(FontId::new(
+                    if compact { 32. } else { 46. },
+                    self.v5.font_family.clone(),
+                ))
                 .strong()
                 .color(Color32::from_rgb(
                     theme.text[0],
@@ -940,10 +1033,10 @@ impl Studio {
                 )),
         );
         child.label(RichText::new(&self.project.author).color(accent));
-        child.add_space(35.);
+        child.add_space(if compact { 12. } else { 35. });
         if child
             .add_sized(
-                [250., 46.],
+                [button_width, button_height.max(46.)],
                 egui::Button::new(RichText::new("开始新的故事").color(text_on(accent)))
                     .fill(accent),
             )
@@ -957,7 +1050,8 @@ impl Studio {
         if child
             .add_enabled(
                 auto.is_file(),
-                egui::Button::new("继续上次的故事").min_size(Vec2::new(250., 42.)),
+                egui::Button::new("继续上次的故事")
+                    .min_size(Vec2::new(button_width, button_height)),
             )
             .clicked()
         {
@@ -967,25 +1061,33 @@ impl Studio {
             }
         }
         if child
-            .add_sized([250., 42.], egui::Button::new("存档与读取"))
+            .add_sized(
+                [button_width, button_height],
+                egui::Button::new("存档与读取"),
+            )
             .clicked()
         {
             self.saves_open = true;
         }
         if child
-            .add_sized([250., 42.], egui::Button::new("阅读与声音设置"))
+            .add_sized(
+                [button_width, button_height],
+                egui::Button::new("阅读与声音设置"),
+            )
             .clicked()
         {
             self.advanced.settings_open = true;
         }
         if child
-            .add_sized([250., 42.], egui::Button::new("结局收藏"))
+            .add_sized([button_width, button_height], egui::Button::new("结局收藏"))
             .clicked()
         {
             self.advanced.collection_open = true;
         }
-        child.add_space(25.);
-        child.label(RichText::new("点击按钮开始 · 支持键盘和鼠标").color(INK));
+        if !compact {
+            child.add_space(25.);
+            child.label(RichText::new("点击按钮开始 · 支持键盘和鼠标").color(INK));
+        }
     }
     fn player_windows(&mut self, ctx: &egui::Context) {
         if self.advanced.settings_open {

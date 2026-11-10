@@ -7,7 +7,13 @@ use eframe::{
     App,
     egui::{self, Color32, RichText, Vec2},
 };
-use opengalgame::{catalog::*, model::*, project_io::*, recovery};
+use opengalgame::{
+    bundle::{self, Format},
+    catalog::*,
+    model::*,
+    project_io::*,
+    recovery,
+};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     path::PathBuf,
@@ -51,6 +57,7 @@ struct ExportJob {
     project: Project,
     base: PathBuf,
     destination: PathBuf,
+    format: Format,
     ctx: egui::Context,
 }
 struct ExportResult {
@@ -135,7 +142,9 @@ impl Workspace {
             while let Ok(job) = exports.recv() {
                 let result = std::env::current_exe()
                     .map_err(anyhow::Error::from)
-                    .and_then(|exe| export_game(&job.project, &job.base, &exe, &job.destination))
+                    .and_then(|exe| {
+                        bundle::export(&job.project, &job.base, &exe, &job.destination, job.format)
+                    })
                     .map(|_| ())
                     .map_err(|e| format!("{e:#}"));
                 if results.send(ExportResult { id: job.id, result }).is_err() {
@@ -385,6 +394,7 @@ impl Workspace {
         project: Project,
         base: PathBuf,
         destination: PathBuf,
+        format: Format,
         ctx: &egui::Context,
     ) {
         let id = self.export_tasks.len();
@@ -398,6 +408,7 @@ impl Workspace {
             project,
             base,
             destination,
+            format,
             ctx: ctx.clone(),
         });
         self.jobs_open = true;
@@ -957,9 +968,11 @@ if ui.selectable_label(card.pinned,"置顶").clicked(){self.catalog.projects[i].
                                     }
                                     ExportState::Done => {
                                         ui.colored_label(GOOD, "导出完成");
-                                        if ui.button("打开输出目录").clicked() {
+                                        if ui.button("打开所在文件夹").clicked()
+                                            && let Some(parent) = task.destination.parent()
+                                        {
                                             let _ = std::process::Command::new("explorer.exe")
-                                                .arg(&task.destination)
+                                                .arg(parent)
                                                 .spawn();
                                         }
                                     }
@@ -1153,7 +1166,8 @@ impl App for Workspace {
                         project,
                         base,
                         destination,
-                    } => self.queue_export(*project, base, destination, ctx),
+                        format,
+                    } => self.queue_export(*project, base, destination, format, ctx),
                 }
             }
         }

@@ -48,6 +48,7 @@ pub(super) struct V5 {
     pub rename_file: String,
     pub file_stem: String,
     pub export_preflight: bool,
+    pub export_format: Format,
 }
 impl V5 {
     pub fn layout_path(path: &Path) -> PathBuf {
@@ -104,6 +105,7 @@ impl V5 {
             rename_file: String::new(),
             file_stem: String::new(),
             export_preflight: false,
+            export_format: Format::default(),
         }
     }
 }

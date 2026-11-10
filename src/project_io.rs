@@ -64,6 +64,21 @@ pub fn save_project(file: &Path, project: &Project) -> Result<()> {
     write_atomic(file, &bytes)
 }
 pub fn import_asset(base: &Path, source: &Path) -> Result<String> {
+    import_image(base, source, ImageImport::Standard)
+}
+
+pub fn import_portrait(base: &Path, source: &Path) -> Result<String> {
+    import_image(base, source, ImageImport::Portrait)
+}
+
+#[derive(PartialEq, Eq)]
+enum ImageImport {
+    Standard,
+    Portrait,
+    Existing,
+}
+
+fn import_image(base: &Path, source: &Path, mode: ImageImport) -> Result<String> {
     let ext = source
         .extension()
         .and_then(|s| s.to_str())
@@ -73,19 +88,39 @@ pub fn import_asset(base: &Path, source: &Path) -> Result<String> {
         ["png", "jpg", "jpeg", "webp"].contains(&ext.as_str()),
         "请选择 PNG、JPG 或 WebP 图片"
     );
-    let bytes = fs::read(source)?;
-    ensure!(bytes.len() <= 30 * 1024 * 1024, "素材超过 30 MB");
-    let img = image::load_from_memory(&bytes).context("图片无法解码")?;
+    // A generated RGBA PNG can be larger than the original compressed import.
+    let limit_mb = if mode == ImageImport::Existing && ext == "png" {
+        258
+    } else {
+        30
+    };
+    let limit = limit_mb * 1024 * 1024;
     ensure!(
-        img.width() <= 8192 && img.height() <= 8192,
-        "图片不能超过 8192 像素"
+        fs::metadata(source)?.len() <= limit,
+        "素材超过 {limit_mb} MB"
     );
+    let mut bytes = fs::read(source)?;
+    ensure!(bytes.len() as u64 <= limit, "素材超过 {limit_mb} MB");
+    let reader = image::ImageReader::new(std::io::Cursor::new(&bytes)).with_guessed_format()?;
+    let (width, height) = reader.into_dimensions().context("图片无法解码")?;
+    ensure!(width <= 8192 && height <= 8192, "图片不能超过 8192 像素");
+    let img = image::load_from_memory(&bytes).context("图片无法解码")?;
+    let mut ext = ext;
+    if mode == ImageImport::Portrait {
+        let mut rgba = img.into_rgba8();
+        if crate::portrait::remove_matte(&mut rgba) {
+            let mut output = std::io::Cursor::new(Vec::new());
+            rgba.write_to(&mut output, image::ImageFormat::Png)?;
+            bytes = output.into_inner();
+            ext = "png".into();
+        }
+    }
     let hash = format!("{:x}", Sha256::digest(&bytes));
     let relative = format!("assets/{}.{ext}", &hash[..20]);
     fs::create_dir_all(base.join("assets"))?;
     let target = base.join(&relative);
     if !target.exists() {
-        fs::write(target, bytes)?;
+        write_atomic(&target, &bytes)?;
     }
     Ok(relative)
 }
@@ -122,7 +157,11 @@ pub fn clone_project(project: &Project, source_base: &Path, target_file: &Path) 
                 } else if project.audio.iter().any(|a| a.file == relative) {
                     import_audio(target_base, &safe_asset(source_base, &relative)?)?
                 } else {
-                    import_asset(target_base, &safe_asset(source_base, &relative)?)?
+                    import_image(
+                        target_base,
+                        &safe_asset(source_base, &relative)?,
+                        ImageImport::Existing,
+                    )?
                 },
             );
         }
@@ -161,6 +200,27 @@ pub fn export_game(
     executable: &Path,
     destination: &Path,
 ) -> Result<PathBuf> {
+    stage_game(project, base, executable, destination)?;
+    fs::copy(executable, destination.join("Game.exe"))?;
+    if let Some(icon) = &project.presentation.icon {
+        crate::native_icon::set_exe_icon(&destination.join("Game.exe"), &safe_asset(base, icon)?)?;
+    }
+    fs::write(
+        destination.join("游戏说明.txt"),
+        format!(
+            "{}\r\n\r\n双击 Game.exe 开始游戏。请完整保留 assets 文件夹和 game.json。\r\n点击或空格继续；数字键选择；Esc 打开存档。下方按钮可切换全屏、调整阅读和声音。\r\n新存档位于用户本机 LOCALAPPDATA/opengalgame/saves；旧版数据继续沿用原位置，不写入游戏目录。\r\n本游戏由 OpenGalgame Rust 引擎生成，无需安装 Rust 或 Python。\r\n",
+            project.title
+        ),
+    )?;
+    Ok(destination.to_owned())
+}
+
+pub(crate) fn stage_game(
+    project: &Project,
+    base: &Path,
+    executable: &Path,
+    destination: &Path,
+) -> Result<()> {
     let errors: Vec<_> = validate(project, Some(base))
         .into_iter()
         .filter(|i| i.severity == Severity::Error)
@@ -182,10 +242,6 @@ pub fn export_game(
     let mut game = project.clone();
     game.clear_author_notes();
     clone_project(&game, base, &destination.join("game.json"))?;
-    fs::copy(executable, destination.join("Game.exe"))?;
-    if let Some(icon) = &project.presentation.icon {
-        crate::native_icon::set_exe_icon(&destination.join("Game.exe"), &safe_asset(base, icon)?)?;
-    }
     fs::write(destination.join("LICENSE"), include_str!("../LICENSE"))?;
     fs::write(
         destination.join("THIRD_PARTY.md"),
@@ -197,14 +253,7 @@ pub fn export_game(
             copy_licenses(&licenses, &destination.join("licenses"))?;
         }
     }
-    fs::write(
-        destination.join("游戏说明.txt"),
-        format!(
-            "{}\r\n\r\n双击 Game.exe 开始游戏。请完整保留 assets 文件夹和 game.json。\r\n点击或空格继续；数字键选择；Esc 打开存档。下方按钮可切换全屏、调整阅读和声音。\r\n新存档位于用户本机 LOCALAPPDATA/opengalgame/saves；旧版数据继续沿用原位置，不写入游戏目录。\r\n本游戏由 OpenGalgame Rust 引擎生成，无需安装 Rust 或 Python。\r\n",
-            project.title
-        ),
-    )?;
-    Ok(destination.to_owned())
+    Ok(())
 }
 
 pub fn import_audio(base: &Path, source: &Path) -> Result<String> {

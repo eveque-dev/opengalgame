@@ -1,8 +1,8 @@
 [package]
 name = "opengalgame"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
-description = "Windows visual novel engine and visual editor"
+description = "Visual novel editor for Windows with Windows and Android players"
 license = "MIT"
 repository = "https://github.com/eveque-dev/opengalgame"
 readme = "README.md"
@@ -12,15 +12,24 @@ categories = ["game-engines", "gui"]
 [dependencies]
 anyhow = "1"
 ab_glyph = "0.2"
-eframe = { version = "=0.33.3", default-features = false, features = ["default_fonts", "glow", "accesskit"] }
+eframe = { version = "=0.33.3", default-features = false, features = ["default_fonts", "glow"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
-rfd = { version = "=0.17.2", default-features = false }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 sha2 = "0.10"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "native-tls"] }
 rodio = { version = "=0.21.1", default-features = false, features = ["playback", "wav", "mp3", "vorbis", "flac"] }
+tempfile = "3"
+zip = { version = "=4.6.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[target.'cfg(windows)'.dependencies]
+eframe = { version = "=0.33.3", default-features = false, features = ["accesskit"] }
+rfd = { version = "=0.17.2", default-features = false }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "native-tls"] }
 windows-sys = { version = "0.61", features = ["Win32_System_LibraryLoader", "Win32_Foundation", "Win32_Security_Cryptography"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+eframe = { version = "=0.33.3", default-features = false, features = ["android-native-activity"] }
+winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
 
 [profile.release]
 opt-level = 2

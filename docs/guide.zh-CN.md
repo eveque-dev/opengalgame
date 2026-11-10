@@ -52,7 +52,7 @@ Ctrl+S 正式保存；Ctrl+Z 撤销；Ctrl+Y 重做。正式保存保留前一�
 
 提供自动存档和 3 个手动格；手动存档附场景缩略图、标题与时间。还有对白回看、全屏和返回标题。新存档、设置与结局收藏位于 `%LOCALAPPDATA%/opengalgame/saves/<项目标识哈希>/`，旧版数据继续沿用原位置，不同项目独立保存。0.4 存档允许对白、图片和布局更新；控制流程改变会检查并提示不兼容，详见 [存档兼容](save-compatibility.md)。旧版项目首次打开自动保留 0.2 基线。
 
-分享 **整个导出文件夹**，保留 `Game.exe`、`game.json`、`assets/` 和许可文件。玩家解压双击 `Game.exe`。自定义图标写入 EXE 资源，同时用于窗口图标。
+可选择 Windows 单文件 EXE、Windows ZIP 或 Android APK。单文件 EXE 已内嵌剧本和素材，双击即可游玩。ZIP 解压后双击 `Game.exe`，保留 `game.json`、`assets/` 和许可文件。Android 需通过 APK 安装，存档留在应用数据中。导出工具链和签名详见 [发布 Windows 与 Android 游戏](distribution.md)。
 
 ## 构建与验证
 
@@ -62,16 +62,17 @@ Ctrl+S 正式保存；Ctrl+Z 撤销；Ctrl+Y 重做。正式保存保留前一�
 cargo test --locked
 cargo clippy --all-targets --locked -- -D warnings
 cargo build --release --locked
+python tools/build_android.py
 python tools/package_windows.py
 ```
 
 ```powershell
 target/release/opengalgame.exe --validate examples/long-form/project.json
 target/release/opengalgame.exe --play examples/long-form/project.json
-target/release/opengalgame.exe --export examples/long-form/project.json exports/MyGame
+target/release/opengalgame.exe --export-exe examples/long-form/project.json exports/MyGame.exe
 ```
 
-导出目标须不存在或为空。项目以 UTF-8 JSON 存储；新增字段有默认值，0.1 项目可打开。`tests/engine.rs`、`tests/authoring_v2.rs` 与 `tests/workspace_v3.rs` 验证分支、存档回退、导入、恢复、媒体迁移和 42 节点全路径。
+打包完整发布版前，先按 [Android 播放器构建说明](distribution.md#从源码构建-android-播放器) 安装 SDK 和 Rust 目标。导出文件须使用新路径。项目以 UTF-8 JSON 存储，新增字段有默认值，0.1 项目可打开。自动测试覆盖分支、存档回退、导入、恢复、媒体迁移和 42 节点全路径。
 
 ## 源码与兼容性
 
@@ -83,7 +84,7 @@ target/release/opengalgame.exe --export examples/long-form/project.json exports/
 - `src/sound.rs` / `src/native_icon.rs`：音轨播放与 Windows EXE 图标。
 - `DESIGN.md`：原生工作区设计决策。
 
-目标 Windows 10/11 x64，已在本机验证，尚未覆盖全部显卡和系统版本。需要 OpenGL 3.3 驱动；C 运行库静态链接，不需要 WebView。中文读取本机微软雅黑/黑体，不分发系统字体。暂无代码签名、`.rpy` 导入、配音轨编辑、任意脚本插件或其他平台导出。
+编辑器面向 Windows 10/11 x64，需要 OpenGL 3.3 驱动。Android 播放器面向 Android 8.0 及以上的 64 位设备。播放器读取设备系统中文字体，可在项目主题中随包提供字体。Windows EXE 使用未签名的构建。
 
 示例对白原创；图片复用自本工作区此前生成的演示素材；音乐与提示音为程序合成。真实作品请使用自己有权使用的素材。组件许可见 [组件声明](../THIRD_PARTY.md) 和发布包 `licenses/`。
 

@@ -1,6 +1,13 @@
+#[cfg(target_os = "android")]
+use crate::android::editor_dialogs as rfd;
 use crate::editor_theme::{accent, text_on};
 use eframe::egui::{self, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
-use opengalgame::{model::*, project_io::*, runtime::*};
+use opengalgame::{
+    bundle::{self, Format},
+    model::*,
+    project_io::*,
+    runtime::*,
+};
 mod advanced;
 mod checkpoints;
 mod debug_ui;
@@ -55,6 +62,7 @@ enum Action {
     Back,
     Restart,
 }
+#[cfg_attr(target_os = "android", allow(dead_code))]
 pub(crate) enum WorkspaceRequest {
     Open(PathBuf),
     New,
@@ -62,6 +70,7 @@ pub(crate) enum WorkspaceRequest {
         project: Box<Project>,
         base: PathBuf,
         destination: PathBuf,
+        format: Format,
     },
 }
 pub struct Studio {
@@ -121,7 +130,15 @@ pub struct Studio {
 }
 pub fn configure(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
-    for candidate in [r"C:\Windows\Fonts\msyh.ttc", r"C:\Windows\Fonts\simhei.ttf"] {
+    #[cfg(windows)]
+    let candidates = [r"C:\Windows\Fonts\msyh.ttc", r"C:\Windows\Fonts\simhei.ttf"];
+    #[cfg(target_os = "android")]
+    let candidates = [
+        "/system/fonts/NotoSansCJK-Regular.ttc",
+        "/system/fonts/NotoSansSC-Regular.otf",
+        "/system/fonts/NotoSansCJKsc-Regular.otf",
+    ];
+    for candidate in candidates {
         if let Ok(bytes) = std::fs::read(candidate) {
             fonts
                 .font_data
@@ -151,7 +168,11 @@ pub fn configure(ctx: &egui::Context) {
     style.visuals.selection.stroke = Stroke::new(1.0_f32, ACCENT);
     style.spacing.item_spacing = Vec2::new(10., 10.);
     style.spacing.button_padding = Vec2::new(13., 8.);
-    style.spacing.interact_size.y = 34.;
+    style.spacing.interact_size.y = if cfg!(target_os = "android") {
+        48.
+    } else {
+        34.
+    };
     style
         .text_styles
         .insert(egui::TextStyle::Body, FontId::proportional(16.));
@@ -250,21 +271,26 @@ impl Studio {
     pub(crate) fn dirty(&self) -> bool {
         self.dirty_flag
     }
+    #[cfg(windows)]
     pub(crate) fn project(&self) -> &Project {
         &self.project
     }
+    #[cfg(windows)]
     pub(crate) fn selected_scene(&self) -> Option<&Node> {
         if self.player_only || self.runtime.is_some() {
             return None;
         }
         self.project.nodes.get(self.selected)
     }
+    #[cfg(windows)]
     pub(crate) fn is_playing(&self) -> bool {
         self.runtime.is_some()
     }
+    #[cfg(windows)]
     pub(crate) fn path(&self) -> &Path {
         &self.path
     }
+    #[cfg(windows)]
     pub(crate) fn pause(&mut self) {
         if !self.player_only {
             let _ = write_json(&v5::V5::layout_path(&self.path), &self.v5.layout);
@@ -275,9 +301,11 @@ impl Studio {
         self.images.clear();
         self.textures.clear();
     }
+    #[cfg(windows)]
     pub(crate) fn discard_recovery(&self) {
         let _ = self.checkpoints.dismiss(&self.path, &self.saved);
     }
+    #[cfg(windows)]
     pub(crate) fn edit_external<T>(&mut self, edit: impl FnOnce(&mut Project) -> T) -> T {
         let before = self.project.clone();
         let result = edit(&mut self.project);
@@ -296,6 +324,7 @@ impl Studio {
         }
         result
     }
+    #[cfg(windows)]
     pub(crate) fn focus_scene(&mut self, id: &str) {
         if self.runtime.is_none()
             && let Some(index) = self.project.nodes.iter().position(|node| node.id == id)
@@ -1149,7 +1178,15 @@ impl Studio {
         }
         painter.rect_filled(rect, 8, Color32::from_black_alpha(28));
         let theme = self.game_theme();
-        let dialogue_h = if self.project.production.theme.is_some() {
+        let compact_player = cfg!(target_os = "android") && playing;
+        let dialogue_h = if compact_player {
+            let ratio: f32 = if node.kind == NodeKind::Choice {
+                0.68
+            } else {
+                0.52
+            };
+            size.y * ratio.max(theme.panel_height)
+        } else if self.project.production.theme.is_some() {
             size.y * theme.panel_height
         } else if node.kind == NodeKind::Choice {
             (size.y * 0.53).clamp(210., 380.)
@@ -1245,7 +1282,11 @@ impl Studio {
         } else {
             (size.x / 800.).clamp(0.6, 1.0)
         };
-        let dialogue_inset = Vec2::new(20., 14.) * preview_scale;
+        let dialogue_inset = if compact_player {
+            Vec2::new(12., 8.)
+        } else {
+            Vec2::new(20., 14.)
+        } * preview_scale;
         let mut child = ui.new_child(
             egui::UiBuilder::new()
                 .id_salt("dialogue_overlay")
@@ -1318,7 +1359,13 @@ impl Studio {
                     for (ordinal, index) in choices.into_iter().enumerate() {
                         if ui
                             .add_sized(
-                                [ui.available_width(), theme.button_height * preview_scale],
+                                [
+                                    ui.available_width(),
+                                    theme
+                                        .button_height
+                                        .max(if compact_player { 48. } else { 0. })
+                                        * preview_scale,
+                                ],
                                 egui::Button::new(
                                     RichText::new(format!(
                                         "{}  {}",
@@ -1736,7 +1783,12 @@ impl Studio {
             if ui
                 .add_enabled(
                     kind == Some(NodeKind::Dialogue),
-                    egui::Button::new("继续  空格").fill(Color32::from_rgb(72, 67, 115)),
+                    egui::Button::new(if cfg!(target_os = "android") {
+                        "继续"
+                    } else {
+                        "继续  空格"
+                    })
+                    .fill(Color32::from_rgb(72, 67, 115)),
                 )
                 .clicked()
             {
@@ -1745,23 +1797,15 @@ impl Studio {
             if kind == Some(NodeKind::Ending) && ui.button("重新开始").clicked() {
                 self.step(Action::Restart);
             }
+            if cfg!(target_os = "android") {
+                ui.menu_button("更多", |ui| {
+                    self.player_menu(ui);
+                });
+            }
         });
-        if self.player_only {
+        if self.player_only && !cfg!(target_os = "android") {
             ui.horizontal_wrapped(|ui| {
-                if ui.button("返回标题").clicked() {
-                    self.save_slot("auto");
-                    self.runtime = None;
-                    self.advanced.title_screen = true;
-                    self.auto = false;
-                }
-                if ui.button("设置").clicked() {
-                    self.advanced.settings_open = true;
-                    self.auto = false;
-                }
-                if ui.button("结局收藏").clicked() {
-                    self.advanced.collection_open = true;
-                    self.auto = false;
-                }
+                self.player_menu(ui);
                 ui.label("正文字号");
                 if ui
                     .add(egui::Slider::new(&mut self.text_size, 16.0..=30.0))
@@ -1785,11 +1829,36 @@ impl Studio {
             });
         }
     }
+    fn player_menu(&mut self, ui: &mut egui::Ui) {
+        if ui.button("返回标题").clicked() {
+            self.save_slot("auto");
+            self.runtime = None;
+            self.advanced.title_screen = true;
+            self.auto = false;
+        }
+        if ui.button("设置").clicked() {
+            self.advanced.settings_open = true;
+            self.auto = false;
+        }
+        if ui.button("结局收藏").clicked() {
+            self.advanced.collection_open = true;
+            self.auto = false;
+        }
+    }
     fn asset_dialog(&mut self) -> Option<String> {
+        self.image_dialog(import_asset)
+    }
+    fn portrait_dialog(&mut self) -> Option<String> {
+        self.image_dialog(import_portrait)
+    }
+    fn image_dialog(
+        &mut self,
+        import: fn(&Path, &Path) -> anyhow::Result<String>,
+    ) -> Option<String> {
         let file = rfd::FileDialog::new()
             .add_filter("图片", &["png", "jpg", "jpeg", "webp"])
             .pick_file()?;
-        match import_asset(self.base(), &file) {
+        match import(self.base(), &file) {
             Ok(relative) => Some(relative),
             Err(e) => {
                 self.message(Err::<String, _>(e));
@@ -1948,7 +2017,7 @@ impl Studio {
                     ("准备人物与背景","进入「人物」「背景」导入 PNG、JPG、WebP。图片会复制到项目，不依赖原路径。"),
                     ("写对白与选择","左侧添加节点，右侧填写标题、画面、发言人和正文。对白指定下一场景，选择设置各选项的目标。"),
                     ("串联故事","通过右侧「节点标识与操作」设置起点。分支图可缩放、拖动和自动整理。"),
-                    ("测试并导出","F5 从头试玩；当前节点试玩使用变量初始值。检查没有错误后，导出完整的 Windows 游戏目录。")
+                    ("测试并导出","F5 从头试玩。检查没有错误后，可导出 Windows 单文件 EXE、Windows ZIP 或 Android APK。")
                 ] {ui.label(RichText::new(title).strong().color(accent(ui)));ui.label(text);ui.add_space(6.);}
                 ui.separator();ui.label("Ctrl+S 保存  ·  Ctrl+Z 撤销  ·  Ctrl+Y 重做  ·  F5 试玩");
                 ui.label("试玩中：空格继续、左方向键回退、数字键选择、Esc 打开存档。");
@@ -1964,14 +2033,13 @@ impl Studio {
                 .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
                 .show(ctx, |ui| {
                     ui.label(RichText::new(&self.project.title).size(24.).color(GOOD));
-                    ui.label("现在可以在 Windows 上独立游玩，无需安装 Rust 或编辑器。");
                     ui.add_space(10.);
                     ui.label(RichText::new(path.display().to_string()).color(accent(ui)));
                     ui.separator();
-                    ui.label("分享时请发送整个文件夹，包含 Game.exe、game.json 和 assets。");
-                    if tool(ui, Icon::Folder, "打开导出目录", true).clicked()
+                    if tool(ui, Icon::Folder, "打开所在文件夹", true).clicked()
+                        && let Some(parent) = path.parent()
                         && let Err(e) = std::process::Command::new("explorer.exe")
-                            .arg(&path)
+                            .arg(parent)
                             .spawn()
                     {
                         self.message(Err::<String, _>(e.into()));
@@ -2220,6 +2288,18 @@ impl eframe::App for Studio {
                         .inner_margin(16),
                 )
                 .show(ctx, |ui| {
+                    if cfg!(target_os = "android") {
+                        let size = Vec2::new(
+                            ui.available_width(),
+                            (ui.available_height() - 64.).max(100.),
+                        );
+                        if let Some(action) = self.scene(ui, size, true) {
+                            self.step(action);
+                        }
+                        ui.add_space(8.);
+                        self.player_controls(ui);
+                        return;
+                    }
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(&self.project.title)

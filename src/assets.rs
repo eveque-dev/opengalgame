@@ -196,7 +196,8 @@ pub fn import_by_kind(kind: AssetKind, base: &Path, source: &Path) -> Result<Str
     match kind {
         AssetKind::Audio => import_audio(base, source),
         AssetKind::Font => import_font(base, source),
-        _ => import_asset(base, source),
+        AssetKind::Character => import_portrait(base, source),
+        AssetKind::Background => import_asset(base, source),
     }
 }
 pub fn rename_file(p: &Project, base: &Path, old: &str, stem: &str) -> Result<Project> {

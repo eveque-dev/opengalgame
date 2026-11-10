@@ -722,6 +722,18 @@ impl Studio {
             let mut cancel = false;
             egui::Modal::new(egui::Id::new("export_preflight")).show(ctx, |ui| {
                 ui.heading("导出前检查");
+                ui.horizontal_wrapped(|ui| {
+                    ui.selectable_value(&mut self.v5.export_format, Format::Exe, "Windows EXE");
+                    ui.selectable_value(&mut self.v5.export_format, Format::Zip, "Windows ZIP");
+                    ui.selectable_value(&mut self.v5.export_format, Format::Apk, "Android APK");
+                });
+                ui.label(match self.v5.export_format {
+                    Format::Exe => "单个 .exe 内含播放器、剧本和素材，双击游玩。",
+                    Format::Zip => "保留 Game.exe、game.json 与素材目录，解压后游玩。",
+                    Format::Apk => {
+                        "适用于 Android 8.0 及以上的 64 位设备。导出需 JDK 及 Android SDK。"
+                    }
+                });
                 if let Some(a) = &self.v5.audit {
                     ui.label(format!(
                         "素材占用 {:.2} MB，另加播放器和组件许可。",
@@ -756,7 +768,7 @@ impl Studio {
                     }
                     ui.horizontal(|ui| {
                         proceed = ui
-                            .add_enabled(missing == 0, egui::Button::new("选择目录并导出"))
+                            .add_enabled(missing == 0, egui::Button::new("选择保存位置"))
                             .clicked();
                         cancel = ui.button("返回编辑").clicked();
                     });
@@ -779,21 +791,32 @@ impl Studio {
             self.section = Section::Check;
             return;
         }
-        if let Some(folder) = rfd::FileDialog::new()
-            .set_title("选择导出游戏的父目录")
-            .pick_folder()
+        let format = self.v5.export_format;
+        let extension = format.extension();
+        if let Some(destination) = rfd::FileDialog::new()
+            .set_title("保存游戏发布包")
+            .add_filter(extension.to_uppercase(), &[extension])
+            .set_file_name(format!("OpenGalgame-{}.{extension}", stamp()))
+            .save_file()
         {
-            let destination = folder.join(format!("opengalgame-game-{}", stamp()));
+            let destination = if destination.extension().is_none() {
+                destination.with_extension(extension)
+            } else {
+                destination
+            };
             if self.managed {
                 self.workspace_request = Some(WorkspaceRequest::Export {
                     project: Box::new(self.project.clone()),
                     base: self.base().to_owned(),
                     destination,
+                    format,
                 });
             } else {
                 let result = std::env::current_exe()
                     .map_err(anyhow::Error::from)
-                    .and_then(|exe| export_game(&self.project, self.base(), &exe, &destination));
+                    .and_then(|exe| {
+                        bundle::export(&self.project, self.base(), &exe, &destination, format)
+                    });
                 match result {
                     Ok(path) => {
                         self.export_path = Some(path);

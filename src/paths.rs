@@ -1,5 +1,8 @@
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "android")]
+pub(crate) static ANDROID_DATA: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
 fn compatible_directory(root: &Path, relative: &Path) -> PathBuf {
     let current = root.join("opengalgame").join(relative);
     // Read existing installations in place; never move or delete their saves.
@@ -12,6 +15,10 @@ fn compatible_directory(root: &Path, relative: &Path) -> PathBuf {
 }
 
 pub fn data_directory(relative: impl AsRef<Path>) -> PathBuf {
+    #[cfg(target_os = "android")]
+    if let Some(root) = ANDROID_DATA.get() {
+        return root.join("opengalgame").join(relative);
+    }
     let root = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
